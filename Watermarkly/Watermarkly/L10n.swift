@@ -98,4 +98,9 @@ enum L10n {
         format("%lld photo(s) saved to your library.", count)
     }
     static var unableToSavePhotos: String { tr("Unable to save photos.") }
+
+    // MARK: - Legal
+
+    static var privacyPolicy: String { tr("Privacy Policy") }
+    static var support: String { tr("Support") }
 }

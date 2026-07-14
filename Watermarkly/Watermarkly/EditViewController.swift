@@ -1512,9 +1512,10 @@ extension EditViewController: PHPickerViewControllerDelegate {
         provider.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) { [weak self] data, _ in
             guard let data,
                   let image = ImageLoader.image(from: data, maxPixelSize: ImageLimits.pickerMaxPixelSize) else { return }
+            let logo = ImageLoader.normalized(image)
             DispatchQueue.main.async {
                 guard let self else { return }
-                self.settings.setLogo(image, for: self.settings.mode)
+                self.settings.setLogo(logo, for: self.settings.mode)
                 self.updateLogoControls()
                 self.refreshPreview(invalidateCache: true)
             }

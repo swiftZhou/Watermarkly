@@ -9,6 +9,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
         let window = UIWindow(windowScene: windowScene)
         window.overrideUserInterfaceStyle = .light
+        window.tintColor = AppTheme.accent
         let mainVC = MainViewController()
         let nav = UINavigationController(rootViewController: mainVC)
         nav.navigationBar.prefersLargeTitles = false

@@ -1,6 +1,7 @@
 import UIKit
 import PhotosUI
 import UniformTypeIdentifiers
+import SafariServices
 
 final class MainViewController: UIViewController, StoreManagerDelegate {
 
@@ -46,6 +47,21 @@ final class MainViewController: UIViewController, StoreManagerDelegate {
         label.textAlignment = .center
         label.translatesAutoresizingMaskIntoConstraints = false
         return label
+    }()
+
+    private lazy var privacyPolicyButton: UIButton = {
+        var config = UIButton.Configuration.plain()
+        config.title = L10n.privacyPolicy
+        config.baseForegroundColor = AppTheme.secondaryText
+        config.contentInsets = NSDirectionalEdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12)
+        var title = AttributedString(L10n.privacyPolicy)
+        title.font = .systemFont(ofSize: 13, weight: .medium)
+        title.underlineStyle = .single
+        config.attributedTitle = title
+        let button = UIButton(configuration: config)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.addTarget(self, action: #selector(privacyPolicyTapped), for: .touchUpInside)
+        return button
     }()
 
     private lazy var featureCardsStack: UIStackView = {
@@ -175,6 +191,7 @@ final class MainViewController: UIViewController, StoreManagerDelegate {
         view.addSubview(featureCardsStack)
         view.addSubview(selectButton)
         view.addSubview(trialLabel)
+        view.addSubview(privacyPolicyButton)
 
         NSLayoutConstraint.activate([
             titleLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 36),
@@ -196,8 +213,22 @@ final class MainViewController: UIViewController, StoreManagerDelegate {
 
             trialLabel.topAnchor.constraint(equalTo: selectButton.bottomAnchor, constant: 16),
             trialLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
-            trialLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24)
+            trialLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
+
+            privacyPolicyButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            privacyPolicyButton.bottomAnchor.constraint(
+                equalTo: view.safeAreaLayoutGuide.bottomAnchor,
+                constant: -12
+            ),
+            privacyPolicyButton.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 24),
+            privacyPolicyButton.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -24)
         ])
+    }
+
+    @objc private func privacyPolicyTapped() {
+        let safari = SFSafariViewController(url: AppLinks.privacyPolicy)
+        safari.preferredControlTintColor = AppTheme.accent
+        present(safari, animated: true)
     }
 
     private func updateTrialLabel() {
@@ -268,7 +299,7 @@ private final class FeaturePreviewCardView: UIView {
 
     private let iconContainer: UIView = {
         let view = UIView()
-        view.backgroundColor = UIColor(red: 0.949, green: 0.949, blue: 0.969, alpha: 1)
+        view.backgroundColor = AppTheme.background
         view.layer.cornerRadius = 8
         view.translatesAutoresizingMaskIntoConstraints = false
         return view

@@ -77,7 +77,10 @@ enum ImageLoader {
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         ) else { return nil }
 
-        context.scaleBy(x: scale, y: scale)
+        // Match UIKit (top-left origin). Raw CG contexts are bottom-left, which
+        // flips watermark logos upside-down in Corner/Tiled overlay previews.
+        context.translateBy(x: 0, y: CGFloat(pixelHeight))
+        context.scaleBy(x: scale, y: -scale)
         context.clear(CGRect(origin: .zero, size: size))
         context.interpolationQuality = .high
         UIGraphicsPushContext(context)
