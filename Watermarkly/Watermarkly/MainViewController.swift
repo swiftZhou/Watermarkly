@@ -6,7 +6,7 @@ final class MainViewController: UIViewController, StoreManagerDelegate {
 
     private let titleLabel: UILabel = {
         let label = UILabel()
-        label.text = "Watermarkly"
+        label.text = L10n.appName
         label.font = .systemFont(ofSize: 34, weight: .bold)
         label.textColor = AppTheme.primaryText
         label.textAlignment = .center
@@ -16,7 +16,7 @@ final class MainViewController: UIViewController, StoreManagerDelegate {
 
     private let subtitleLabel: UILabel = {
         let label = UILabel()
-        label.text = "Batch protect your product photos"
+        label.text = L10n.homeSubtitle
         label.font = .systemFont(ofSize: 17, weight: .regular)
         label.textColor = AppTheme.secondaryText
         label.textAlignment = .center
@@ -27,7 +27,7 @@ final class MainViewController: UIViewController, StoreManagerDelegate {
 
     private lazy var selectButton: UIButton = {
         var config = UIButton.Configuration.filled()
-        config.title = "Select Photos"
+        config.title = L10n.selectPhotos
         config.baseBackgroundColor = AppTheme.accent
         config.baseForegroundColor = .white
         config.cornerStyle = .fixed
@@ -50,10 +50,10 @@ final class MainViewController: UIViewController, StoreManagerDelegate {
 
     private lazy var featureCardsStack: UIStackView = {
         let stack = UIStackView(arrangedSubviews: [
-            FeaturePreviewCardView(title: "Tiled", symbolName: "rectangle.grid.2x2"),
-            FeaturePreviewCardView(title: "Corner", symbolName: "rectangle.inset.filled"),
-            FeaturePreviewCardView(title: "Card", symbolName: "photo.on.rectangle.angled"),
-            FeaturePreviewCardView(title: "Retouch", symbolName: "paintbrush.pointed")
+            FeaturePreviewCardView(title: L10n.modeTiled, symbolName: "rectangle.grid.2x2"),
+            FeaturePreviewCardView(title: L10n.modeCorner, symbolName: "rectangle.inset.filled"),
+            FeaturePreviewCardView(title: L10n.modeCard, symbolName: "photo.on.rectangle.angled"),
+            FeaturePreviewCardView(title: L10n.modeRetouch, symbolName: "paintbrush.pointed")
         ])
         stack.axis = .horizontal
         stack.spacing = 10
@@ -94,7 +94,7 @@ final class MainViewController: UIViewController, StoreManagerDelegate {
         let renderer = UIGraphicsImageRenderer(size: imageSize)
         return renderer.image { rendererContext in
             let context = rendererContext.cgContext
-            let text = "Watermarkly"
+            let text = L10n.appName
             let font = UIFont.systemFont(ofSize: 280, weight: .heavy)
             let attrs: [NSAttributedString.Key: Any] = [
                 .font: font,
@@ -202,9 +202,9 @@ final class MainViewController: UIViewController, StoreManagerDelegate {
 
     private func updateTrialLabel() {
         if TrialManager.shared.isUnlocked {
-            trialLabel.text = "Unlimited saves unlocked"
+            trialLabel.text = L10n.unlimitedSavesUnlocked
         } else {
-            trialLabel.text = "\(TrialManager.shared.remainingTrials) free saves remaining · up to 3 photos"
+            trialLabel.text = L10n.freeSavesRemaining(TrialManager.shared.remainingTrials)
         }
     }
 
@@ -213,7 +213,7 @@ final class MainViewController: UIViewController, StoreManagerDelegate {
             navigationItem.rightBarButtonItem = nil
         } else {
             navigationItem.rightBarButtonItem = UIBarButtonItem(
-                title: "Unlock",
+                title: L10n.unlock,
                 style: .plain,
                 target: self,
                 action: #selector(unlockTapped)
@@ -367,7 +367,7 @@ extension MainViewController: PHPickerViewControllerDelegate {
 
             let images = loaded.sorted { $0.0 < $1.0 }.map(\.1)
             guard !images.isEmpty else {
-                self.showAlert(title: "Unable to Load Photos", message: "Please try selecting different images.")
+                self.showAlert(title: L10n.unableToLoadPhotos, message: L10n.trySelectingDifferentImages)
                 return
             }
             self.navigationController?.pushViewController(EditViewController(images: images), animated: true)
@@ -376,7 +376,7 @@ extension MainViewController: PHPickerViewControllerDelegate {
 
     private func showAlert(title: String, message: String) {
         let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        alert.addAction(UIAlertAction(title: L10n.ok, style: .default))
         present(alert, animated: true)
     }
 }

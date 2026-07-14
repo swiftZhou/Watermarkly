@@ -15,7 +15,7 @@ final class PurchaseViewController: UIViewController {
 
     private let titleLabel: UILabel = {
         let label = UILabel()
-        label.text = "Unlock Watermarkly"
+        label.text = L10n.unlockTitle
         label.font = .systemFont(ofSize: 28, weight: .bold)
         label.textColor = AppTheme.primaryText
         label.textAlignment = .center
@@ -25,7 +25,7 @@ final class PurchaseViewController: UIViewController {
 
     private let subtitleLabel: UILabel = {
         let label = UILabel()
-        label.text = "One-time purchase. No subscription."
+        label.text = L10n.unlockSubtitle
         label.font = .systemFont(ofSize: 16)
         label.textColor = AppTheme.secondaryText
         label.textAlignment = .center
@@ -38,11 +38,7 @@ final class PurchaseViewController: UIViewController {
         label.numberOfLines = 0
         label.font = .systemFont(ofSize: 16)
         label.textColor = AppTheme.primaryText
-        label.text = """
-        • Unlimited batch exports
-        • Select unlimited photos
-        • All watermark modes forever
-        """
+        label.text = L10n.purchaseBenefits
         label.translatesAutoresizingMaskIntoConstraints = false
         return label
     }()
@@ -62,7 +58,7 @@ final class PurchaseViewController: UIViewController {
 
     private lazy var restoreButton: UIButton = {
         var config = UIButton.Configuration.plain()
-        config.title = "Restore Purchases"
+        config.title = L10n.restorePurchases
         config.baseForegroundColor = AppTheme.accent
         let button = UIButton(configuration: config)
         button.translatesAutoresizingMaskIntoConstraints = false
@@ -115,7 +111,7 @@ final class PurchaseViewController: UIViewController {
 
     private func updatePriceLabel() {
         var config = purchaseButton.configuration ?? UIButton.Configuration.filled()
-        config.title = "Unlock for \(StoreManager.shared.displayPrice)"
+        config.title = L10n.unlockForPrice(StoreManager.shared.displayPrice)
         purchaseButton.configuration = config
     }
 
@@ -148,7 +144,7 @@ final class PurchaseViewController: UIViewController {
                     onUnlocked?()
                     dismiss(animated: true)
                 } else {
-                    showError("No previous purchase found for this Apple ID.")
+                    showError(L10n.noPreviousPurchase)
                 }
             } catch {
                 showError(error.localizedDescription)
@@ -164,8 +160,8 @@ final class PurchaseViewController: UIViewController {
     }
 
     private func showError(_ message: String) {
-        let alert = UIAlertController(title: "Purchase Error", message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        let alert = UIAlertController(title: L10n.purchaseError, message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: L10n.ok, style: .default))
         present(alert, animated: true)
     }
 }

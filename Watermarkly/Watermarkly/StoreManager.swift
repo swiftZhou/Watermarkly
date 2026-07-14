@@ -105,7 +105,7 @@ enum StoreError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .productUnavailable:
-            return "The unlock product is not available. Please try again later."
+            return L10n.unlockProductUnavailable
         }
     }
 }

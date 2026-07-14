@@ -8,7 +8,7 @@ final class SaveProgressViewController: UIViewController {
 
     private let titleLabel: UILabel = {
         let label = UILabel()
-        label.text = "Saving Photos"
+        label.text = L10n.savingPhotos
         label.font = .systemFont(ofSize: 20, weight: .semibold)
         label.textAlignment = .center
         label.translatesAutoresizingMaskIntoConstraints = false
@@ -79,17 +79,17 @@ final class SaveProgressViewController: UIViewController {
             progressView.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -24)
         ])
 
-        statusLabel.text = "Preparing…"
+        statusLabel.text = L10n.preparing
     }
 
     func updateRenderingProgress(current: Int) {
         let progress = Float(current) / Float(max(totalCount, 1))
         progressView.setProgress(progress * 0.8, animated: true)
-        statusLabel.text = "Rendering \(current) of \(totalCount)…"
+        statusLabel.text = L10n.renderingProgress(current: current, total: totalCount)
     }
 
     func beginSaving() {
-        statusLabel.text = "Writing to photo library…"
+        statusLabel.text = L10n.writingToPhotoLibrary
         progressView.setProgress(0.85, animated: true)
     }
 
@@ -144,7 +144,7 @@ final class SaveProgressViewController: UIViewController {
                 guard status == .authorized || status == .limited else {
                     self.finishSaving(
                         success: false,
-                        message: "Please allow photo library access in Settings."
+                        message: L10n.allowPhotoLibraryAccess
                     )
                     return
                 }
@@ -157,7 +157,7 @@ final class SaveProgressViewController: UIViewController {
         guard index < images.count else {
             finishSaving(
                 success: true,
-                message: "\(images.count) photo(s) saved to your library."
+                message: L10n.photosSaved(images.count)
             )
             return
         }
@@ -175,7 +175,7 @@ final class SaveProgressViewController: UIViewController {
                 } else {
                     self.finishSaving(
                         success: false,
-                        message: error?.localizedDescription ?? "Unable to save photos."
+                        message: error?.localizedDescription ?? L10n.unableToSavePhotos
                     )
                 }
             }

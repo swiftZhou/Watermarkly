@@ -3,8 +3,8 @@ import Foundation
 final class TrialManager {
     static let shared = TrialManager()
 
-    /// Temporary dev switch — set to `false` before release.
-    private let bypassPurchaseLimits = true
+    /// Dev-only: when `true`, skips trial/purchase limits. Keep `false` for StoreKit IAP.
+    private let bypassPurchaseLimits = false
 
     private let usedCountKey = "freeTrialCount"
     private let unlockedKey = "isUnlocked"

@@ -449,7 +449,6 @@ enum WatermarkEngine {
         let imagePoints = normalizedStrokes.map { denormalizedPoint($0, imageSize: source.size) }
         let thinned = thinnedStrokePoints(imagePoints, minSpacing: max(brushDiameter / 5, 3))
 
-        // Prefer MI-GAN (fast / mobile) — LaMa is too slow on iPhone 13-class devices.
         if MIGANInpaintEngine.isModelAvailable,
            let inpainted = try? MIGANInpaintEngine.inpaint(
                image: source,
@@ -459,17 +458,11 @@ enum WatermarkEngine {
             return inpainted
         }
 
-        if LaMaInpaintEngine.isModelAvailable,
-           let inpainted = try? LaMaInpaintEngine.inpaint(
-               image: source,
-               strokePoints: thinned,
-               brushDiameter: brushDiameter,
-               maxWorkingPixelSize: ImageLimits.retouchExportInpaintMaxPixelSize
-           ) {
-            return inpainted
-        }
-
-        return applyRetouchWithBlur(
+        return RetouchBlurInpaint.inpaint(
+            image: source,
+            strokePoints: thinned,
+            brushDiameter: brushDiameter
+        ) ?? applyRetouchWithBlur(
             to: source,
             imagePoints: thinned,
             brushDiameter: brushDiameter
@@ -698,7 +691,7 @@ enum WatermarkEngine {
         }
     }
 
-    /// White-on-black mask for LaMa inpainting.
+    /// White-on-black mask for inpainting.
     static func rasterizeInpaintMask(
         points: [CGPoint],
         brushDiameter: CGFloat,
@@ -744,7 +737,7 @@ enum WatermarkEngine {
         }
     }
 
-    /// Fast crop + blur fill for interactive Retouch (LaMa is reserved for Save).
+    /// Fast crop + blur fill when MI-GAN is unavailable.
     static func commitRetouchPathQuick(
         on composite: UIImage,
         points: [CGPoint],
@@ -753,24 +746,19 @@ enum WatermarkEngine {
         let source = ImageLoader.normalized(composite)
         guard !points.isEmpty else { return source }
         let thinned = thinnedStrokePoints(points, minSpacing: max(brushDiameter / 4, 4))
-        // Never fall back to per-stamp blur — that path is extremely slow on long strokes.
-        return LaMaInpaintEngine.quickBlurInpaint(
+        return RetouchBlurInpaint.inpaint(
             image: source,
             strokePoints: thinned,
             brushDiameter: brushDiameter
         ) ?? source
     }
 
-    /// Apply AI inpainting along a completed stroke.
-    /// Interactive Retouch must stay fast: MI-GAN → blur. Never fall back to LaMa
-    /// (800×800 is multi-second on iPhone 13). Pass `allowSlowFallback: true` for export.
+    /// Apply AI inpainting along a completed stroke: MI-GAN → blur.
     static func commitRetouchPath(
         on composite: UIImage,
         originalBase: UIImage,
         points: [CGPoint],
-        brushDiameter: CGFloat,
-        maxWorkingPixelSize: CGFloat = ImageLimits.retouchPreviewInpaintMaxPixelSize,
-        allowSlowFallback: Bool = false
+        brushDiameter: CGFloat
     ) -> UIImage {
         let source = ImageLoader.normalized(composite)
         guard !points.isEmpty else { return source }
@@ -785,19 +773,6 @@ enum WatermarkEngine {
                 )
             } catch {
                 print("MI-GAN inpaint failed: \(error.localizedDescription)")
-            }
-        }
-
-        if allowSlowFallback, LaMaInpaintEngine.isModelAvailable {
-            do {
-                return try LaMaInpaintEngine.inpaint(
-                    image: source,
-                    strokePoints: thinned,
-                    brushDiameter: brushDiameter,
-                    maxWorkingPixelSize: maxWorkingPixelSize
-                )
-            } catch {
-                print("LaMa inpaint failed, falling back to blur: \(error.localizedDescription)")
             }
         }
 

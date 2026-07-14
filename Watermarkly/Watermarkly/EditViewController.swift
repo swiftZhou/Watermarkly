@@ -38,7 +38,6 @@ final class EditViewController: UIViewController {
     private var retouchUndoSnapshots: [Int: [UIImage?]] = [:]
     private var retouchCommitGeneration: [Int: Int] = [:]
     private static let maxRetouchUndosPerPhoto = 20
-    /// Interactive Retouch uses this queue only — never wait behind LaMa.
     private let retouchQuickQueue = DispatchQueue(label: "com.watermarkly.retouch.quick", qos: .userInteractive)
 
     private static let retouchBrushColors: [UIColor] = [
@@ -87,7 +86,7 @@ final class EditViewController: UIViewController {
         var config = UIButton.Configuration.gray()
         config.cornerStyle = .fixed
         config.background.cornerRadius = AppTheme.cornerRadius
-        config.title = "Previous"
+        config.title = L10n.previous
         config.image = UIImage(systemName: "chevron.left")
         config.imagePadding = 6
         config.baseForegroundColor = AppTheme.primaryText
@@ -100,7 +99,7 @@ final class EditViewController: UIViewController {
         var config = UIButton.Configuration.gray()
         config.cornerStyle = .fixed
         config.background.cornerRadius = AppTheme.cornerRadius
-        config.title = "Next"
+        config.title = L10n.next
         config.image = UIImage(systemName: "chevron.right")
         config.imagePlacement = .trailing
         config.imagePadding = 6
@@ -129,7 +128,7 @@ final class EditViewController: UIViewController {
     }()
 
     private lazy var saveAllBarButton = UIBarButtonItem(
-        title: "Save All",
+        title: L10n.saveAll,
         style: .done,
         target: self,
         action: #selector(saveAllTapped)
@@ -137,7 +136,7 @@ final class EditViewController: UIViewController {
 
     private lazy var undoRetouchBarButton: UIBarButtonItem = {
         let item = UIBarButtonItem(
-            title: "Undo",
+            title: L10n.undo,
             style: .plain,
             target: self,
             action: #selector(undoRetouchTapped)
@@ -174,7 +173,7 @@ final class EditViewController: UIViewController {
 
     private let textField: UITextField = {
         let field = UITextField()
-        field.placeholder = "Watermark text"
+        field.placeholder = L10n.watermarkTextPlaceholder
         field.borderStyle = .none
         field.font = .systemFont(ofSize: 16)
         field.textColor = AppTheme.primaryText
@@ -193,7 +192,7 @@ final class EditViewController: UIViewController {
         var config = UIButton.Configuration.gray()
         config.cornerStyle = .fixed
         config.background.cornerRadius = AppTheme.cornerRadius
-        config.title = "Choose Logo"
+        config.title = L10n.chooseLogo
         config.image = UIImage(systemName: "photo")
         config.imagePadding = 8
         let button = UIButton(configuration: config)
@@ -203,7 +202,7 @@ final class EditViewController: UIViewController {
 
     private lazy var clearLogoButton: UIButton = {
         var config = UIButton.Configuration.plain()
-        config.title = "Clear Logo"
+        config.title = L10n.clearLogo
         config.baseForegroundColor = .systemRed
         let button = UIButton(configuration: config)
         button.isHidden = true
@@ -212,23 +211,23 @@ final class EditViewController: UIViewController {
     }()
 
     private lazy var opacityRow = SliderRowView(
-        title: "Opacity", min: 0.1, max: 1.0, value: 0.4
+        title: L10n.opacity, min: 0.1, max: 1.0, value: 0.4
     ) { value in String(format: "%.0f%%", value * 100) }
 
     private lazy var rotationRow = SliderRowView(
-        title: "Rotation", min: -90, max: 90, value: -45
+        title: L10n.rotation, min: -90, max: 90, value: -45
     ) { value in String(format: "%.0f°", value) }
 
     private lazy var spacingRow = SliderRowView(
-        title: "Spacing", min: 10, max: 120, value: 50
+        title: L10n.spacing, min: 10, max: 120, value: 50
     ) { value in String(format: "%.0f pt", value) }
 
     private lazy var sizeRow = SliderRowView(
-        title: "Size", min: 0.5, max: 2.5, value: 1.0
+        title: L10n.size, min: 0.5, max: 2.5, value: 1.0
     ) { value in String(format: "%.0f%%", value * 100) }
 
     private lazy var borderWidthRow = SliderRowView(
-        title: "Border Width", min: 2, max: 18, value: 8
+        title: L10n.borderWidth, min: 2, max: 18, value: 8
     ) { value in String(format: "%.0f%%", value) }
 
     /// Brush Size UI is 0%…100% → diameter 50…200 pt.
@@ -236,12 +235,12 @@ final class EditViewController: UIViewController {
     private static let retouchBrushDiameterAtFullPercent: CGFloat = 200
 
     private lazy var brushSizeRow = SliderRowView(
-        title: "Brush Size", min: 0, max: 100, value: 0
+        title: L10n.brushSize, min: 0, max: 100, value: 0
     ) { value in String(format: "%.0f%%", value) }
 
     private let retouchColorHeaderLabel: UILabel = {
         let label = UILabel()
-        label.text = "Brush Color"
+        label.text = L10n.brushColor
         label.font = .systemFont(ofSize: 14, weight: .medium)
         label.textColor = AppTheme.primaryText
         label.isHidden = true
@@ -274,7 +273,7 @@ final class EditViewController: UIViewController {
 
     private lazy var frameCaptionRow: UIStackView = {
         let label = UILabel()
-        label.text = "Show Caption"
+        label.text = L10n.showCaption
         label.font = .systemFont(ofSize: 14, weight: .medium)
         label.textColor = AppTheme.primaryText
 
@@ -288,7 +287,9 @@ final class EditViewController: UIViewController {
     }()
 
     private lazy var cornerPositionControl: UISegmentedControl = {
-        let control = UISegmentedControl(items: ["TL", "TR", "BL", "BR", "C"])
+        let control = UISegmentedControl(items: [
+            L10n.cornerTL, L10n.cornerTR, L10n.cornerBL, L10n.cornerBR, L10n.cornerC
+        ])
         control.selectedSegmentIndex = CornerPosition.bottomRight.rawValue
         control.addTarget(self, action: #selector(cornerPositionChanged), for: .valueChanged)
         return control
@@ -314,7 +315,7 @@ final class EditViewController: UIViewController {
 
     private let templateHeaderLabel: UILabel = {
         let label = UILabel()
-        label.text = "Device Template"
+        label.text = L10n.deviceTemplate
         label.font = .systemFont(ofSize: 14, weight: .medium)
         label.textColor = AppTheme.primaryText
         return label
@@ -322,7 +323,7 @@ final class EditViewController: UIViewController {
 
     private let cornerHeaderLabel: UILabel = {
         let label = UILabel()
-        label.text = "Position"
+        label.text = L10n.position
         label.font = .systemFont(ofSize: 14, weight: .medium)
         label.textColor = AppTheme.primaryText
         return label
@@ -344,7 +345,7 @@ final class EditViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Edit"
+        title = L10n.edit
         view.backgroundColor = AppTheme.background
         navigationController?.navigationBar.tintColor = AppTheme.accent
         navigationItem.rightBarButtonItems = [saveAllBarButton]
@@ -744,12 +745,12 @@ final class EditViewController: UIViewController {
         let isRetouch = settings.mode == .retouch
         if images.count > 1 {
             if isRetouch {
-                pageLabel.text = "Photo \(currentIndex + 1) of \(images.count) · pinch to zoom"
+                pageLabel.text = L10n.photoPageRetouch(index: currentIndex + 1, total: images.count)
             } else {
-                pageLabel.text = "Photo \(currentIndex + 1) of \(images.count) · scroll horizontally · pinch to zoom"
+                pageLabel.text = L10n.photoPageScroll(index: currentIndex + 1, total: images.count)
             }
         } else {
-            pageLabel.text = "Photo 1 of 1 · pinch to zoom"
+            pageLabel.text = L10n.photoPageSingle
         }
         updatePhotoNavButtons()
     }
@@ -814,7 +815,7 @@ final class EditViewController: UIViewController {
         progressVC.onComplete = { [weak self] success, message in
             progressVC.dismiss(animated: true) {
                 guard let self, let message else { return }
-                let title = success ? "Saved" : "Save Failed"
+                let title = success ? L10n.saved : L10n.saveFailed
                 self.showAlert(title: title, message: message)
             }
         }
@@ -844,19 +845,19 @@ final class EditViewController: UIViewController {
 
     private func showAlert(title: String, message: String) {
         let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        alert.addAction(UIAlertAction(title: L10n.ok, style: .default))
         present(alert, animated: true)
     }
 
     private func applyWatermarkTextFieldStyle() {
-        textField.placeholder = "Watermark text"
+        textField.placeholder = L10n.watermarkTextPlaceholder
         textField.backgroundColor = AppTheme.fieldBackground
         textField.layer.borderWidth = 1
         textField.layer.borderColor = AppTheme.fieldBorder.cgColor
     }
 
     private func applyFrameCaptionFieldStyle() {
-        textField.placeholder = "Caption on card"
+        textField.placeholder = L10n.captionOnCardPlaceholder
         textField.backgroundColor = AppTheme.fieldBackground
         textField.layer.borderWidth = 1.5
         textField.layer.borderColor = AppTheme.accent.withAlphaComponent(0.35).cgColor
@@ -1097,7 +1098,6 @@ final class EditViewController: UIViewController {
         let brushSize = settings.retouchBrushSize
         let existingComposite = retouchCompositeCache[index] ?? base
 
-        // MI-GAN 256 is built for mobile (~1–2s on iPhone 13). LaMa 800 stays as fallback only.
         retouchQuickQueue.async { [weak self] in
             guard let self else { return }
             let result = WatermarkEngine.commitRetouchPath(

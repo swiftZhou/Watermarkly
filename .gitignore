@@ -1,5 +1,2 @@
-# Optional heavy LaMa model (~195 MB). Fast Retouch uses MI-GAN (~12 MB) instead:
+# Retouch model is committed or fetched via:
 #   bash Scripts/download_migan_model.sh
-#   bash Scripts/download_lama_model.sh   # optional slow fallback
-Watermarkly/Watermarkly/LaMa.mlpackage/
-Models/LaMa.mlpackage/

@@ -8,10 +8,10 @@ enum WatermarkMode: Int, CaseIterable {
 
     var title: String {
         switch self {
-        case .tiled: return "Tiled"
-        case .corner: return "Corner"
-        case .card: return "Card"
-        case .retouch: return "Retouch"
+        case .tiled: return L10n.modeTiled
+        case .corner: return L10n.modeCorner
+        case .card: return L10n.modeCard
+        case .retouch: return L10n.modeRetouch
         }
     }
 }
@@ -21,11 +21,11 @@ enum CornerPosition: Int, CaseIterable {
 
     var title: String {
         switch self {
-        case .topLeft: return "Top Left"
-        case .topRight: return "Top Right"
-        case .bottomLeft: return "Bottom Left"
-        case .bottomRight: return "Bottom Right"
-        case .center: return "Center"
+        case .topLeft: return L10n.tr("Top Left")
+        case .topRight: return L10n.tr("Top Right")
+        case .bottomLeft: return L10n.tr("Bottom Left")
+        case .bottomRight: return L10n.tr("Bottom Right")
+        case .center: return L10n.tr("Center")
         }
     }
 }

@@ -1,6 +1,23 @@
 import CoreML
 import UIKit
 
+enum MIGANInpaintError: LocalizedError {
+    case modelMissing
+    case invalidImage
+    case predictionFailed(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .modelMissing:
+            return "MI-GAN model is missing from the app bundle."
+        case .invalidImage:
+            return "Invalid source image for inpainting."
+        case .predictionFailed(let message):
+            return "MI-GAN inpainting failed: \(message)"
+        }
+    }
+}
+
 /// Fast on-device inpainting via MI-GAN Core ML (256×256), MIT (Picsart).
 /// For flat UI / white backgrounds (common watermark screenshots), uses edge-color
 /// fill first — much cleaner than Places2 textures on solid colors.
@@ -361,7 +378,7 @@ enum MIGANInpaintEngine {
         if let cachedModel { return cachedModel }
 
         guard isModelAvailable else {
-            throw LaMaInpaintError.modelMissing
+            throw MIGANInpaintError.modelMissing
         }
         let configuration = MLModelConfiguration()
         if #available(iOS 16.0, *) {
@@ -406,11 +423,11 @@ enum MIGANInpaintEngine {
         let resizedMask = resize(mask, to: CGSize(width: side, height: side))
 
         guard let input = makeInputArray(image: resizedImage, holeMask: resizedMask) else {
-            throw LaMaInpaintError.invalidImage
+            throw MIGANInpaintError.invalidImage
         }
         let output = try model.prediction(input_image: input)
         guard let result = imageFromOutputArray(output.output_image) else {
-            throw LaMaInpaintError.predictionFailed("Could not decode MI-GAN output.")
+            throw MIGANInpaintError.predictionFailed("Could not decode MI-GAN output.")
         }
         return result
     }
