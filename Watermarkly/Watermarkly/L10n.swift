@@ -103,4 +103,14 @@ enum L10n {
 
     static var privacyPolicy: String { tr("Privacy Policy") }
     static var support: String { tr("Support") }
+    static var privacyConsentTitle: String { tr("Privacy Notice") }
+    static var privacyConsentMessage: String {
+        tr("Welcome to Watermarkly. We process photos on your device and do not upload them to our servers. Please read and agree to the Privacy Policy before continuing.")
+    }
+    static var privacyConsentAgree: String { tr("Agree") }
+    static var privacyConsentDisagree: String { tr("Disagree") }
+    static var privacyConsentDisagreeTitle: String { tr("Agreement Required") }
+    static var privacyConsentDisagreeMessage: String {
+        tr("You need to agree to the Privacy Policy to use Watermarkly.")
+    }
 }

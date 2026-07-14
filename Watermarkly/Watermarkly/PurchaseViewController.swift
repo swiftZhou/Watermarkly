@@ -1,5 +1,6 @@
 import UIKit
 import StoreKit
+import SafariServices
 
 final class PurchaseViewController: UIViewController {
 
@@ -57,12 +58,28 @@ final class PurchaseViewController: UIViewController {
     }()
 
     private lazy var restoreButton: UIButton = {
-        var config = UIButton.Configuration.plain()
+        var config = UIButton.Configuration.bordered()
         config.title = L10n.restorePurchases
         config.baseForegroundColor = AppTheme.accent
+        config.cornerStyle = .fixed
+        config.background.cornerRadius = AppTheme.cornerRadius
+        config.contentInsets = NSDirectionalEdgeInsets(top: 14, leading: 24, bottom: 14, trailing: 24)
         let button = UIButton(configuration: config)
         button.translatesAutoresizingMaskIntoConstraints = false
         button.addTarget(self, action: #selector(restoreTapped), for: .touchUpInside)
+        return button
+    }()
+
+    private lazy var privacyPolicyButton: UIButton = {
+        var config = UIButton.Configuration.plain()
+        config.baseForegroundColor = AppTheme.secondaryText
+        var title = AttributedString(L10n.privacyPolicy)
+        title.font = .systemFont(ofSize: 13, weight: .medium)
+        title.underlineStyle = .single
+        config.attributedTitle = title
+        let button = UIButton(configuration: config)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.addTarget(self, action: #selector(privacyPolicyTapped), for: .touchUpInside)
         return button
     }()
 
@@ -88,11 +105,14 @@ final class PurchaseViewController: UIViewController {
 
     private func setupLayout() {
         let stack = UIStackView(arrangedSubviews: [
-            iconView, titleLabel, subtitleLabel, benefitsLabel, purchaseButton, restoreButton, activityIndicator
+            iconView, titleLabel, subtitleLabel, benefitsLabel,
+            purchaseButton, restoreButton, privacyPolicyButton, activityIndicator
         ])
         stack.axis = .vertical
         stack.spacing = 16
-        stack.alignment = .center
+        stack.alignment = .fill
+        stack.setCustomSpacing(24, after: benefitsLabel)
+        stack.setCustomSpacing(8, after: restoreButton)
         stack.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(stack)
 
@@ -101,12 +121,9 @@ final class PurchaseViewController: UIViewController {
             stack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -32),
             stack.centerYAnchor.constraint(equalTo: view.centerYAnchor),
 
-            benefitsLabel.leadingAnchor.constraint(equalTo: stack.leadingAnchor),
-            benefitsLabel.trailingAnchor.constraint(equalTo: stack.trailingAnchor),
-
-            purchaseButton.leadingAnchor.constraint(equalTo: stack.leadingAnchor),
-            purchaseButton.trailingAnchor.constraint(equalTo: stack.trailingAnchor)
+            iconView.heightAnchor.constraint(equalToConstant: 56)
         ])
+        iconView.contentMode = .center
     }
 
     private func updatePriceLabel() {
@@ -153,9 +170,16 @@ final class PurchaseViewController: UIViewController {
         }
     }
 
+    @objc private func privacyPolicyTapped() {
+        let safari = SFSafariViewController(url: AppLinks.privacyPolicy)
+        safari.preferredControlTintColor = AppTheme.accent
+        present(safari, animated: true)
+    }
+
     private func setLoading(_ loading: Bool) {
         purchaseButton.isEnabled = !loading
         restoreButton.isEnabled = !loading
+        privacyPolicyButton.isEnabled = !loading
         loading ? activityIndicator.startAnimating() : activityIndicator.stopAnimating()
     }
 

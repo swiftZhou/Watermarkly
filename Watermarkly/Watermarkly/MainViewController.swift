@@ -156,6 +156,11 @@ final class MainViewController: UIViewController, StoreManagerDelegate {
         updateTrialLabel()
     }
 
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        PrivacyConsent.presentIfNeeded(from: self)
+    }
+
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
         if navigationController?.topViewController !== self {
@@ -253,6 +258,10 @@ final class MainViewController: UIViewController, StoreManagerDelegate {
     }
 
     @objc private func unlockTapped() {
+        guard PrivacyConsent.hasAgreed else {
+            PrivacyConsent.presentIfNeeded(from: self)
+            return
+        }
         let purchaseVC = PurchaseViewController()
         let nav = UINavigationController(rootViewController: purchaseVC)
         nav.modalPresentationStyle = .formSheet
@@ -264,6 +273,10 @@ final class MainViewController: UIViewController, StoreManagerDelegate {
     }
 
     @objc private func selectPhotosTapped() {
+        guard PrivacyConsent.hasAgreed else {
+            PrivacyConsent.presentIfNeeded(from: self)
+            return
+        }
         guard !isLoadingPhotos else { return }
 
         var config = PHPickerConfiguration(photoLibrary: .shared())
