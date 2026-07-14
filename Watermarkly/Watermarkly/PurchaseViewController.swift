@@ -1,0 +1,171 @@
+import UIKit
+import StoreKit
+
+final class PurchaseViewController: UIViewController {
+
+    var onUnlocked: (() -> Void)?
+
+    private let iconView: UIImageView = {
+        let config = UIImage.SymbolConfiguration(pointSize: 48, weight: .medium)
+        let view = UIImageView(image: UIImage(systemName: "lock.open.fill", withConfiguration: config))
+        view.tintColor = AppTheme.accent
+        view.translatesAutoresizingMaskIntoConstraints = false
+        return view
+    }()
+
+    private let titleLabel: UILabel = {
+        let label = UILabel()
+        label.text = "Unlock Watermarkly"
+        label.font = .systemFont(ofSize: 28, weight: .bold)
+        label.textColor = AppTheme.primaryText
+        label.textAlignment = .center
+        label.translatesAutoresizingMaskIntoConstraints = false
+        return label
+    }()
+
+    private let subtitleLabel: UILabel = {
+        let label = UILabel()
+        label.text = "One-time purchase. No subscription."
+        label.font = .systemFont(ofSize: 16)
+        label.textColor = AppTheme.secondaryText
+        label.textAlignment = .center
+        label.translatesAutoresizingMaskIntoConstraints = false
+        return label
+    }()
+
+    private let benefitsLabel: UILabel = {
+        let label = UILabel()
+        label.numberOfLines = 0
+        label.font = .systemFont(ofSize: 16)
+        label.textColor = AppTheme.primaryText
+        label.text = """
+        • Unlimited batch exports
+        • Select unlimited photos
+        • All watermark modes forever
+        """
+        label.translatesAutoresizingMaskIntoConstraints = false
+        return label
+    }()
+
+    private lazy var purchaseButton: UIButton = {
+        var config = UIButton.Configuration.filled()
+        config.cornerStyle = .fixed
+        config.background.cornerRadius = AppTheme.cornerRadius
+        config.baseBackgroundColor = AppTheme.accent
+        config.baseForegroundColor = .white
+        config.contentInsets = NSDirectionalEdgeInsets(top: 16, leading: 24, bottom: 16, trailing: 24)
+        let button = UIButton(configuration: config)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.addTarget(self, action: #selector(purchaseTapped), for: .touchUpInside)
+        return button
+    }()
+
+    private lazy var restoreButton: UIButton = {
+        var config = UIButton.Configuration.plain()
+        config.title = "Restore Purchases"
+        config.baseForegroundColor = AppTheme.accent
+        let button = UIButton(configuration: config)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.addTarget(self, action: #selector(restoreTapped), for: .touchUpInside)
+        return button
+    }()
+
+    private let activityIndicator: UIActivityIndicatorView = {
+        let indicator = UIActivityIndicatorView(style: .medium)
+        indicator.hidesWhenStopped = true
+        indicator.translatesAutoresizingMaskIntoConstraints = false
+        return indicator
+    }()
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = AppTheme.background
+        navigationItem.leftBarButtonItem = UIBarButtonItem(
+            barButtonSystemItem: .close,
+            target: self,
+            action: #selector(closeTapped)
+        )
+        setupLayout()
+        updatePriceLabel()
+        Task { await StoreManager.shared.loadProducts(); updatePriceLabel() }
+    }
+
+    private func setupLayout() {
+        let stack = UIStackView(arrangedSubviews: [
+            iconView, titleLabel, subtitleLabel, benefitsLabel, purchaseButton, restoreButton, activityIndicator
+        ])
+        stack.axis = .vertical
+        stack.spacing = 16
+        stack.alignment = .center
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(stack)
+
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 32),
+            stack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -32),
+            stack.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+
+            benefitsLabel.leadingAnchor.constraint(equalTo: stack.leadingAnchor),
+            benefitsLabel.trailingAnchor.constraint(equalTo: stack.trailingAnchor),
+
+            purchaseButton.leadingAnchor.constraint(equalTo: stack.leadingAnchor),
+            purchaseButton.trailingAnchor.constraint(equalTo: stack.trailingAnchor)
+        ])
+    }
+
+    private func updatePriceLabel() {
+        var config = purchaseButton.configuration ?? UIButton.Configuration.filled()
+        config.title = "Unlock for \(StoreManager.shared.displayPrice)"
+        purchaseButton.configuration = config
+    }
+
+    @objc private func closeTapped() {
+        dismiss(animated: true)
+    }
+
+    @objc private func purchaseTapped() {
+        setLoading(true)
+        Task {
+            do {
+                try await StoreManager.shared.purchaseUnlock()
+                if TrialManager.shared.isUnlocked {
+                    onUnlocked?()
+                    dismiss(animated: true)
+                }
+            } catch {
+                showError(error.localizedDescription)
+            }
+            setLoading(false)
+        }
+    }
+
+    @objc private func restoreTapped() {
+        setLoading(true)
+        Task {
+            do {
+                try await StoreManager.shared.restorePurchases()
+                if TrialManager.shared.isUnlocked {
+                    onUnlocked?()
+                    dismiss(animated: true)
+                } else {
+                    showError("No previous purchase found for this Apple ID.")
+                }
+            } catch {
+                showError(error.localizedDescription)
+            }
+            setLoading(false)
+        }
+    }
+
+    private func setLoading(_ loading: Bool) {
+        purchaseButton.isEnabled = !loading
+        restoreButton.isEnabled = !loading
+        loading ? activityIndicator.startAnimating() : activityIndicator.stopAnimating()
+    }
+
+    private func showError(_ message: String) {
+        let alert = UIAlertController(title: "Purchase Error", message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        present(alert, animated: true)
+    }
+}

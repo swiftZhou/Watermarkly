@@ -1,0 +1,4 @@
+# LaMa Core ML model (~195 MB). Download before building Retouch AI inpaint:
+#   bash Scripts/download_lama_model.sh
+Watermarkly/Watermarkly/LaMa.mlpackage/
+Models/LaMa.mlpackage/

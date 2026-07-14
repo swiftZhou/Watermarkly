@@ -1,0 +1,36 @@
+{
+  "identifier" : "Unlock",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "2.99",
+      "familyShareable" : false,
+      "internalID" : "unlock001",
+      "localizations" : [
+        {
+          "description" : "Unlock unlimited batch watermark exports forever.",
+          "displayName" : "Unlimited Unlock",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.zhouhai.Watermarkly.unlock",
+      "referenceName" : "Unlimited Unlock",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_failTransactionsEnabled" : false,
+    "_storeKitErrors" : [
+
+    ]
+  },
+  "subscriptionGroups" : [
+
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}
