@@ -93,7 +93,8 @@ struct WatermarkSettings {
     var frameShowsCaption: Bool = true
 
     // Retouch
-    var retouchBrushSize: CGFloat = 40
+    /// Brush diameter in image points. Default matches Brush Size 0% (50pt).
+    var retouchBrushSize: CGFloat = 50
     var retouchBrushColorIndex: Int = 0
     var deviceTemplate: DeviceFrameTemplate = .iPhone
 

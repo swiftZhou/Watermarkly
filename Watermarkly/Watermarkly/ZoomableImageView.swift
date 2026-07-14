@@ -11,10 +11,20 @@ final class ZoomableImageView: UIScrollView, UIScrollViewDelegate, UIGestureReco
     private let contentView = UIView()
     private let baseImageView = UIImageView()
     private let overlayImageView = UIImageView()
+    private let brushSizeIndicatorView: UIView = {
+        let view = UIView()
+        view.isUserInteractionEnabled = false
+        view.isHidden = true
+        view.alpha = 0.55
+        view.layer.borderWidth = 2
+        view.layer.borderColor = UIColor.white.withAlphaComponent(0.9).cgColor
+        return view
+    }()
 
     private(set) var usesLayeredPreview = false
     var onZoomScaleChanged: ((CGFloat) -> Void)?
     weak var retouchDelegate: ZoomableImageViewRetouchDelegate?
+    private var brushIndicatorDiameterInImage: CGFloat = 0
 
     var isRetouchDrawingEnabled = false {
         didSet {
@@ -86,6 +96,9 @@ final class ZoomableImageView: UIScrollView, UIScrollViewDelegate, UIGestureReco
         addSubview(contentView)
         contentView.addSubview(baseImageView)
         contentView.addSubview(overlayImageView)
+        // Keep indicator on the scroll view (not contentView) so pinch-zoom
+        // never moves it off-screen with the photo.
+        addSubview(brushSizeIndicatorView)
         baseImageView.addGestureRecognizer(retouchPanGesture)
         addGestureRecognizer(retouchTwoFingerTransformGesture)
         pinchGestureRecognizer?.delegate = self
@@ -111,6 +124,7 @@ final class ZoomableImageView: UIScrollView, UIScrollViewDelegate, UIGestureReco
                 overlayImageView.frame = baseImageView.bounds
                 contentSize = bounds.size
             }
+            layoutBrushSizeIndicator()
             return
         }
 
@@ -121,6 +135,7 @@ final class ZoomableImageView: UIScrollView, UIScrollViewDelegate, UIGestureReco
         } else if sizeChanged, zoomScale <= 1.01 {
             centerContentIfNeeded()
         }
+        layoutBrushSizeIndicator()
     }
 
     private func applyInitialZoomLayout() {
@@ -134,10 +149,12 @@ final class ZoomableImageView: UIScrollView, UIScrollViewDelegate, UIGestureReco
         } else {
             centerContentIfNeeded()
         }
+        layoutBrushSizeIndicator()
     }
 
     private func configureContentViewAnchorForRetouchTransform() {
         let size = bounds.size
+        guard size.width > 0, size.height > 0 else { return }
         contentView.bounds = CGRect(origin: .zero, size: size)
         contentView.layer.anchorPoint = CGPoint(x: 0, y: 0)
         contentView.layer.position = .zero
@@ -154,9 +171,15 @@ final class ZoomableImageView: UIScrollView, UIScrollViewDelegate, UIGestureReco
     }
 
     private func resetZoomCanvas() {
+        // Clear custom transform before touching UIScrollView zoom APIs.
         contentView.transform = .identity
         retouchLiveScale = 1
-        setZoomScale(1, animated: false)
+        if !isRetouchDrawingEnabled {
+            restoreContentViewAnchorForScrollZoom()
+        }
+        if abs(zoomScale - 1) > 0.001 {
+            setZoomScale(1, animated: false)
+        }
         contentOffset = .zero
         if isRetouchDrawingEnabled {
             configureContentViewAnchorForRetouchTransform()
@@ -164,7 +187,6 @@ final class ZoomableImageView: UIScrollView, UIScrollViewDelegate, UIGestureReco
             overlayImageView.frame = contentView.bounds
             contentSize = bounds.size
         } else {
-            restoreContentViewAnchorForScrollZoom()
             applyInitialZoomLayout()
         }
         onZoomScaleChanged?(1)
@@ -299,6 +321,67 @@ final class ZoomableImageView: UIScrollView, UIScrollViewDelegate, UIGestureReco
         updateRetouchPreview(compositeImage, referenceSize: compositeImage.size)
     }
 
+    /// Shows a circle at the visible card center matching brush diameter (image-space points).
+    func showBrushSizeIndicator(diameter: CGFloat, color: UIColor) {
+        brushIndicatorDiameterInImage = diameter
+        brushSizeIndicatorView.backgroundColor = color
+        brushSizeIndicatorView.isHidden = false
+        bringSubviewToFront(brushSizeIndicatorView)
+        layoutBrushSizeIndicator()
+    }
+
+    func updateBrushSizeIndicator(diameter: CGFloat, color: UIColor) {
+        brushIndicatorDiameterInImage = diameter
+        brushSizeIndicatorView.backgroundColor = color
+        if brushSizeIndicatorView.isHidden {
+            brushSizeIndicatorView.isHidden = false
+            bringSubviewToFront(brushSizeIndicatorView)
+        }
+        layoutBrushSizeIndicator()
+    }
+
+    func hideBrushSizeIndicator() {
+        brushSizeIndicatorView.isHidden = true
+        brushIndicatorDiameterInImage = 0
+    }
+
+    private func displayedImageRect() -> CGRect? {
+        let imageSize = retouchReferenceSize != .zero
+            ? retouchReferenceSize
+            : baseImageView.image?.size
+        guard let imageSize, imageSize.width > 0, imageSize.height > 0 else { return nil }
+        let viewSize = baseImageView.bounds.size
+        guard viewSize.width > 0, viewSize.height > 0 else { return nil }
+
+        let scale = min(viewSize.width / imageSize.width, viewSize.height / imageSize.height)
+        let displayedSize = CGSize(width: imageSize.width * scale, height: imageSize.height * scale)
+        return CGRect(
+            x: (viewSize.width - displayedSize.width) / 2,
+            y: (viewSize.height - displayedSize.height) / 2,
+            width: displayedSize.width,
+            height: displayedSize.height
+        )
+    }
+
+    private func layoutBrushSizeIndicator() {
+        guard !brushSizeIndicatorView.isHidden,
+              brushIndicatorDiameterInImage > 0,
+              bounds.width > 0, bounds.height > 0,
+              let imageRect = displayedImageRect(),
+              let imageSize = (retouchReferenceSize != .zero
+                               ? Optional(retouchReferenceSize)
+                               : baseImageView.image?.size),
+              imageSize.width > 0 else { return }
+
+        // Size matches on-screen brush (image points × fit scale × current zoom).
+        // Position stays at the card/viewport center, independent of photo transform.
+        let displayScale = imageRect.width / imageSize.width
+        let diameter = max(brushIndicatorDiameterInImage * displayScale * effectiveZoomScale, 4)
+        brushSizeIndicatorView.bounds = CGRect(origin: .zero, size: CGSize(width: diameter, height: diameter))
+        brushSizeIndicatorView.center = CGPoint(x: bounds.midX, y: bounds.midY)
+        brushSizeIndicatorView.layer.cornerRadius = diameter / 2
+    }
+
     func viewForZooming(in scrollView: UIScrollView) -> UIView? {
         contentView
     }
@@ -410,6 +493,7 @@ final class ZoomableImageView: UIScrollView, UIScrollViewDelegate, UIGestureReco
                 midpoint: geometry.midpoint,
                 anchorContent: twoFingerInitialAnchorContent
             )
+            layoutBrushSizeIndicator()
         case .ended, .cancelled, .failed:
             isRetouchTwoFingerActive = false
             twoFingerInitialDistance = 0

@@ -134,8 +134,8 @@ enum ImageLimits {
     static let pickerMaxPixelSize: CGFloat = 4032
     /// Editor preview resolution (spacing drag + settled preview — must stay the same).
     static let previewMaxPixelSize: CGFloat = 1200
-    /// LaMa working resolution while editing (crop is downscaled to this before inference).
-    static let retouchPreviewInpaintMaxPixelSize: CGFloat = 512
+    /// LaMa working resolution while editing (pre-resize before Core ML's 800×800 input).
+    static let retouchPreviewInpaintMaxPixelSize: CGFloat = 384
     /// LaMa working resolution when exporting retouched photos.
     static let retouchExportInpaintMaxPixelSize: CGFloat = 800
 }

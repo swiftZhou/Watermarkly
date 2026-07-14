@@ -32,8 +32,14 @@ final class EditViewController: UIViewController {
     private var retouchCompositeCache: [Int: UIImage] = [:]
     private var retouchMaskCache: [Int: UIImage] = [:]
     private var retouchActiveStroke: [Int: [CGPoint]] = [:]
-    private var retouchNormalizedStrokes: [Int: [CGPoint]] = [:]
-    private let retouchRenderQueue = DispatchQueue(label: "com.watermarkly.retouch.render", qos: .userInitiated)
+    /// One array per committed finger stroke (normalized image points).
+    private var retouchNormalizedStrokePaths: [Int: [[CGPoint]]] = [:]
+    /// Snapshots before each committed stroke (`nil` = original base image).
+    private var retouchUndoSnapshots: [Int: [UIImage?]] = [:]
+    private var retouchCommitGeneration: [Int: Int] = [:]
+    private static let maxRetouchUndosPerPhoto = 20
+    /// Interactive Retouch uses this queue only — never wait behind LaMa.
+    private let retouchQuickQueue = DispatchQueue(label: "com.watermarkly.retouch.quick", qos: .userInteractive)
 
     private static let retouchBrushColors: [UIColor] = [
         UIColor(red: 1.0, green: 0.23, blue: 0.19, alpha: 1),
@@ -74,15 +80,79 @@ final class EditViewController: UIViewController {
         label.font = .systemFont(ofSize: 14, weight: .medium)
         label.textColor = AppTheme.secondaryText
         label.textAlignment = .center
-        label.translatesAutoresizingMaskIntoConstraints = false
         return label
+    }()
+
+    private lazy var previousPhotoButton: UIButton = {
+        var config = UIButton.Configuration.gray()
+        config.cornerStyle = .fixed
+        config.background.cornerRadius = AppTheme.cornerRadius
+        config.title = "Previous"
+        config.image = UIImage(systemName: "chevron.left")
+        config.imagePadding = 6
+        config.baseForegroundColor = AppTheme.primaryText
+        let button = UIButton(configuration: config)
+        button.addTarget(self, action: #selector(previousPhotoTapped), for: .touchUpInside)
+        return button
+    }()
+
+    private lazy var nextPhotoButton: UIButton = {
+        var config = UIButton.Configuration.gray()
+        config.cornerStyle = .fixed
+        config.background.cornerRadius = AppTheme.cornerRadius
+        config.title = "Next"
+        config.image = UIImage(systemName: "chevron.right")
+        config.imagePlacement = .trailing
+        config.imagePadding = 6
+        config.baseForegroundColor = AppTheme.primaryText
+        let button = UIButton(configuration: config)
+        button.addTarget(self, action: #selector(nextPhotoTapped), for: .touchUpInside)
+        return button
+    }()
+
+    private lazy var photoNavStack: UIStackView = {
+        let stack = UIStackView(arrangedSubviews: [previousPhotoButton, nextPhotoButton])
+        stack.axis = .horizontal
+        stack.spacing = 12
+        stack.distribution = .fillEqually
+        stack.isHidden = true
+        return stack
+    }()
+
+    private lazy var pageChromeStack: UIStackView = {
+        let stack = UIStackView(arrangedSubviews: [photoNavStack, pageLabel])
+        stack.axis = .vertical
+        stack.spacing = 6
+        stack.alignment = .fill
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        return stack
+    }()
+
+    private lazy var saveAllBarButton = UIBarButtonItem(
+        title: "Save All",
+        style: .done,
+        target: self,
+        action: #selector(saveAllTapped)
+    )
+
+    private lazy var undoRetouchBarButton: UIBarButtonItem = {
+        let item = UIBarButtonItem(
+            title: "Undo",
+            style: .plain,
+            target: self,
+            action: #selector(undoRetouchTapped)
+        )
+        item.isEnabled = false
+        return item
     }()
 
     // MARK: - Controls scroll area
 
-    private let controlsScrollView: UIScrollView = {
-        let scroll = UIScrollView()
+    private let controlsScrollView: ControlsScrollView = {
+        let scroll = ControlsScrollView()
         scroll.alwaysBounceVertical = true
+        scroll.delaysContentTouches = false
+        scroll.canCancelContentTouches = true
         scroll.translatesAutoresizingMaskIntoConstraints = false
         return scroll
     }()
@@ -161,9 +231,13 @@ final class EditViewController: UIViewController {
         title: "Border Width", min: 2, max: 18, value: 8
     ) { value in String(format: "%.0f%%", value) }
 
+    /// Brush Size UI is 0%…100% → diameter 50…200 pt.
+    private static let retouchBrushDiameterAtZeroPercent: CGFloat = 50
+    private static let retouchBrushDiameterAtFullPercent: CGFloat = 200
+
     private lazy var brushSizeRow = SliderRowView(
-        title: "Brush Size", min: 10, max: 80, value: 40
-    ) { value in String(format: "%.0f pt", value) }
+        title: "Brush Size", min: 0, max: 100, value: 0
+    ) { value in String(format: "%.0f%%", value) }
 
     private let retouchColorHeaderLabel: UILabel = {
         let label = UILabel()
@@ -273,12 +347,7 @@ final class EditViewController: UIViewController {
         title = "Edit"
         view.backgroundColor = AppTheme.background
         navigationController?.navigationBar.tintColor = AppTheme.accent
-        navigationItem.rightBarButtonItem = UIBarButtonItem(
-            title: "Save All",
-            style: .done,
-            target: self,
-            action: #selector(saveAllTapped)
-        )
+        navigationItem.rightBarButtonItems = [saveAllBarButton]
 
         textField.text = settings.text
         textField.addTarget(self, action: #selector(textChanged), for: .editingChanged)
@@ -326,7 +395,7 @@ final class EditViewController: UIViewController {
         view.addSubview(previewContainer)
         previewContainer.addSubview(photoPager)
         previewContainer.addSubview(previewSpinner)
-        view.addSubview(pageLabel)
+        view.addSubview(pageChromeStack)
         view.addSubview(controlsScrollView)
         controlsScrollView.addSubview(controlsStack)
 
@@ -371,10 +440,14 @@ final class EditViewController: UIViewController {
             previewSpinner.centerXAnchor.constraint(equalTo: previewContainer.centerXAnchor),
             previewSpinner.centerYAnchor.constraint(equalTo: previewContainer.centerYAnchor),
 
-            pageLabel.topAnchor.constraint(equalTo: previewContainer.bottomAnchor, constant: 6),
-            pageLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            pageChromeStack.topAnchor.constraint(equalTo: previewContainer.bottomAnchor, constant: 6),
+            pageChromeStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+            pageChromeStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
 
-            controlsScrollView.topAnchor.constraint(equalTo: pageLabel.bottomAnchor, constant: 8),
+            previousPhotoButton.heightAnchor.constraint(equalToConstant: 36),
+            nextPhotoButton.heightAnchor.constraint(equalToConstant: 36),
+
+            controlsScrollView.topAnchor.constraint(equalTo: pageChromeStack.bottomAnchor, constant: 8),
             controlsScrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             controlsScrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             controlsScrollView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
@@ -439,11 +512,22 @@ final class EditViewController: UIViewController {
             self?.commitSliderValues()
             refreshFramePreview()
         }
+        brushSizeRow.onEditingBegan = { [weak self] in
+            self?.showBrushSizeIndicator()
+        }
         brushSizeRow.onValueChanged = { [weak self] _ in
-            self?.settings.retouchBrushSize = CGFloat(self?.brushSizeRow.slider.value ?? 40)
+            guard let self else { return }
+            self.settings.retouchBrushSize = self.brushDiameter(fromPercent: self.brushSizeRow.slider.value)
+            // Only while dragging — valueChanged can fire again after touch-up and would re-show the indicator.
+            if self.brushSizeRow.slider.isTracking {
+                self.showBrushSizeIndicator()
+            }
         }
         brushSizeRow.onEditingEnded = { [weak self] in
-            self?.commitSliderValues()
+            guard let self else { return }
+            self.settings.retouchBrushSize = self.brushDiameter(fromPercent: self.brushSizeRow.slider.value)
+            self.commitSliderValues()
+            self.hideBrushSizeIndicator()
         }
     }
 
@@ -458,6 +542,7 @@ final class EditViewController: UIViewController {
         updateModeControls()
         updateLogoControls()
         updateRetouchInteraction()
+        updatePageLabel()
         if settings.mode == .retouch {
             refreshRetouchPreview(at: currentIndex)
         } else {
@@ -506,7 +591,7 @@ final class EditViewController: UIViewController {
             settings.frameBorderPercent = CGFloat(borderWidthRow.slider.value)
             settings.frameShowsCaption = frameCaptionSwitch.isOn
         case .retouch:
-            settings.retouchBrushSize = CGFloat(brushSizeRow.slider.value)
+            settings.retouchBrushSize = brushDiameter(fromPercent: brushSizeRow.slider.value)
         }
     }
 
@@ -656,10 +741,64 @@ final class EditViewController: UIViewController {
     }
 
     private func updatePageLabel() {
+        let isRetouch = settings.mode == .retouch
         if images.count > 1 {
-            pageLabel.text = "Photo \(currentIndex + 1) of \(images.count) · scroll horizontally · pinch to zoom"
+            if isRetouch {
+                pageLabel.text = "Photo \(currentIndex + 1) of \(images.count) · pinch to zoom"
+            } else {
+                pageLabel.text = "Photo \(currentIndex + 1) of \(images.count) · scroll horizontally · pinch to zoom"
+            }
         } else {
             pageLabel.text = "Photo 1 of 1 · pinch to zoom"
+        }
+        updatePhotoNavButtons()
+    }
+
+    private func updatePhotoNavButtons() {
+        let showNav = settings.mode == .retouch && images.count > 1
+        photoNavStack.isHidden = !showNav
+        guard showNav else { return }
+
+        let canGoPrevious = currentIndex > 0
+        let canGoNext = currentIndex < images.count - 1
+        previousPhotoButton.isEnabled = canGoPrevious
+        nextPhotoButton.isEnabled = canGoNext
+        previousPhotoButton.alpha = canGoPrevious ? 1 : 0.4
+        nextPhotoButton.alpha = canGoNext ? 1 : 0.4
+    }
+
+    @objc private func previousPhotoTapped() {
+        goToPhoto(at: currentIndex - 1)
+    }
+
+    @objc private func nextPhotoTapped() {
+        goToPhoto(at: currentIndex + 1)
+    }
+
+    private func goToPhoto(at index: Int) {
+        guard index >= 0, index < images.count, index != currentIndex else { return }
+        hideBrushSizeIndicator()
+
+        // Stop drawing on the outgoing page before the cell may be recycled.
+        photoPager.previewView(at: currentIndex)?.isRetouchDrawingEnabled = false
+        photoPager.previewView(at: currentIndex)?.retouchDelegate = nil
+
+        currentIndex = index
+        // Non-animated jump is safer while swipe paging is locked (Retouch).
+        photoPager.scrollToPage(index, animated: false)
+        invalidateSpacingPreviewCache()
+        updatePageLabel()
+        updateUndoRetouchButton()
+
+        if let cell = photoPager.cell(at: index) {
+            configurePhotoPage(cell: cell, at: index)
+        }
+
+        updateRetouchInteraction()
+        if settings.mode == .retouch {
+            refreshRetouchPreview(at: index)
+        } else {
+            refreshPreview(showSpinner: previewCache[index] == nil)
         }
     }
     @objc private func saveAllTapped() {
@@ -684,7 +823,7 @@ final class EditViewController: UIViewController {
         progressVC.renderImages(
             sources: images,
             settings: renderSettings,
-            retouchStrokes: retouchNormalizedStrokes
+            retouchStrokePaths: retouchNormalizedStrokePaths
         ) { outputs in
             let shouldConsume = !TrialManager.shared.isUnlocked
             progressVC.saveToLibrary(outputs, consumeTrialIfNeeded: shouldConsume)
@@ -746,6 +885,14 @@ final class EditViewController: UIViewController {
         logoButton.isHidden = !isCorner
         clearLogoButton.isHidden = !isCorner || settings.logo(for: settings.mode) == nil
 
+        if !isRetouch {
+            hideBrushSizeIndicator()
+            navigationItem.rightBarButtonItems = [saveAllBarButton]
+        } else {
+            navigationItem.rightBarButtonItems = [saveAllBarButton, undoRetouchBarButton]
+            updateUndoRetouchButton()
+        }
+
         if isCorner {
             view.endEditing(true)
         } else if isRetouch {
@@ -779,12 +926,12 @@ final class EditViewController: UIViewController {
             frameCaptionSwitch.isOn = settings.frameShowsCaption
         } else if isRetouch {
             brushSizeRow.configure(
-                min: 10,
-                max: 80,
-                value: Float(settings.retouchBrushSize)
+                min: 0,
+                max: 100,
+                value: brushPercent(fromDiameter: settings.retouchBrushSize)
             )
             updateRetouchColorSelection()
-            LaMaInpaintEngine.prepareModel()
+            MIGANInpaintEngine.prepareModel()
         }
     }
 
@@ -808,6 +955,35 @@ final class EditViewController: UIViewController {
     @objc private func retouchColorTapped(_ sender: UIButton) {
         settings.retouchBrushColorIndex = sender.tag
         updateRetouchColorSelection()
+        if brushSizeRow.slider.isTracking {
+            showBrushSizeIndicator()
+        }
+    }
+
+    private func brushDiameter(fromPercent percent: Float) -> CGFloat {
+        let t = CGFloat(min(max(percent, 0), 100) / 100)
+        return Self.retouchBrushDiameterAtZeroPercent
+            + (Self.retouchBrushDiameterAtFullPercent - Self.retouchBrushDiameterAtZeroPercent) * t
+    }
+
+    private func brushPercent(fromDiameter diameter: CGFloat) -> Float {
+        let span = Self.retouchBrushDiameterAtFullPercent - Self.retouchBrushDiameterAtZeroPercent
+        guard span > 0 else { return 0 }
+        let t = (diameter - Self.retouchBrushDiameterAtZeroPercent) / span
+        return Float(min(max(t, 0), 1) * 100)
+    }
+
+    private func showBrushSizeIndicator() {
+        guard settings.mode == .retouch,
+              let preview = currentPreviewView() else { return }
+        let diameter = brushDiameter(fromPercent: brushSizeRow.slider.value)
+        preview.showBrushSizeIndicator(diameter: diameter, color: selectedRetouchColor())
+    }
+
+    private func hideBrushSizeIndicator() {
+        for index in 0..<images.count {
+            photoPager.previewView(at: index)?.hideBrushSizeIndicator()
+        }
     }
 
     private func updateRetouchColorSelection() {
@@ -835,6 +1011,7 @@ final class EditViewController: UIViewController {
 
     private func updateRetouchInteraction() {
         let isRetouch = settings.mode == .retouch
+        // Retouch never uses swipe paging — Previous/Next buttons switch photos instead.
         photoPager.isPagingEnabled = !isRetouch && images.count > 1
 
         for index in 0..<images.count {
@@ -842,6 +1019,7 @@ final class EditViewController: UIViewController {
             preview.isRetouchDrawingEnabled = isRetouch && index == currentIndex
             preview.retouchDelegate = isRetouch ? self : nil
         }
+        updatePhotoNavButtons()
     }
 
     private func refreshRetouchPreview(at index: Int) {
@@ -888,7 +1066,7 @@ final class EditViewController: UIViewController {
         points.append(end)
         retouchActiveStroke[index] = points
 
-        let brushSize = CGFloat(brushSizeRow.slider.value)
+        let brushSize = settings.retouchBrushSize
         retouchMaskCache[index] = WatermarkEngine.drawMaskStroke(
             on: retouchMaskCache[index],
             canvasSize: base.size,
@@ -906,46 +1084,105 @@ final class EditViewController: UIViewController {
               let points = retouchActiveStroke[index],
               !points.isEmpty else { return }
 
-        recordNormalizedStrokePoints(points, at: index)
+        pushRetouchUndoSnapshot(at: index)
+        recordNormalizedStrokePath(points, at: index)
         retouchActiveStroke[index] = []
-        retouchMaskCache[index] = nil
-        showRetouchDisplay(at: index)
+        // Keep colored mask until AI fill lands so the stroke never flashes away.
         previewSpinner.startAnimating()
+        updateUndoRetouchButton()
 
-        let brushSize = CGFloat(brushSizeRow.slider.value)
-        let existingComposite = retouchCompositeCache[index]
+        let generation = (retouchCommitGeneration[index] ?? 0) + 1
+        retouchCommitGeneration[index] = generation
 
-        retouchRenderQueue.async { [weak self] in
+        let brushSize = settings.retouchBrushSize
+        let existingComposite = retouchCompositeCache[index] ?? base
+
+        // MI-GAN 256 is built for mobile (~1–2s on iPhone 13). LaMa 800 stays as fallback only.
+        retouchQuickQueue.async { [weak self] in
             guard let self else { return }
-            let composite = WatermarkEngine.commitRetouchPath(
-                on: existingComposite ?? base,
+            let result = WatermarkEngine.commitRetouchPath(
+                on: existingComposite,
                 originalBase: base,
                 points: points,
                 brushDiameter: brushSize
             )
-            self.retouchCompositeCache[index] = composite
             DispatchQueue.main.async {
+                guard self.retouchCommitGeneration[index] == generation else { return }
+                self.retouchCompositeCache[index] = result
+                self.retouchMaskCache[index] = nil
                 if self.currentIndex == index, self.settings.mode == .retouch {
                     self.showRetouchDisplay(at: index)
                 }
                 self.previewSpinner.stopAnimating()
+                self.updateUndoRetouchButton()
             }
         }
     }
 
-    private func recordNormalizedStrokePoints(_ points: [CGPoint], at index: Int) {
+    private func recordNormalizedStrokePath(_ points: [CGPoint], at index: Int) {
         guard let base = baseImageCache[index] else { return }
 
-        var strokes = retouchNormalizedStrokes[index] ?? []
+        var path: [CGPoint] = []
+        path.reserveCapacity(points.count)
         for point in points {
             let normalized = WatermarkEngine.normalizedPoint(point, imageSize: base.size)
-            if strokes.isEmpty {
-                strokes.append(normalized)
-            } else if distanceBetween(strokes.last!, normalized) > 0.0001 {
-                strokes.append(normalized)
+            if path.isEmpty {
+                path.append(normalized)
+            } else if distanceBetween(path.last!, normalized) > 0.0001 {
+                path.append(normalized)
             }
         }
-        retouchNormalizedStrokes[index] = strokes
+        guard !path.isEmpty else { return }
+
+        var paths = retouchNormalizedStrokePaths[index] ?? []
+        paths.append(path)
+        retouchNormalizedStrokePaths[index] = paths
+    }
+
+    private func pushRetouchUndoSnapshot(at index: Int) {
+        var stack = retouchUndoSnapshots[index] ?? []
+        stack.append(retouchCompositeCache[index])
+        if stack.count > Self.maxRetouchUndosPerPhoto {
+            stack.removeFirst(stack.count - Self.maxRetouchUndosPerPhoto)
+        }
+        retouchUndoSnapshots[index] = stack
+    }
+
+    @objc private func undoRetouchTapped() {
+        undoLastRetouchStroke(at: currentIndex)
+    }
+
+    private func undoLastRetouchStroke(at index: Int) {
+        guard var stack = retouchUndoSnapshots[index], let snapshot = stack.popLast() else { return }
+        retouchUndoSnapshots[index] = stack
+
+        // Cancel any in-flight AI fill for this photo.
+        retouchCommitGeneration[index] = (retouchCommitGeneration[index] ?? 0) + 1
+        previewSpinner.stopAnimating()
+        retouchActiveStroke[index] = []
+        retouchMaskCache[index] = nil
+
+        if let snapshot {
+            retouchCompositeCache[index] = snapshot
+        } else {
+            retouchCompositeCache[index] = nil
+        }
+
+        if var paths = retouchNormalizedStrokePaths[index], !paths.isEmpty {
+            paths.removeLast()
+            retouchNormalizedStrokePaths[index] = paths
+        }
+
+        if settings.mode == .retouch, currentIndex == index {
+            showRetouchDisplay(at: index)
+        }
+        updateUndoRetouchButton()
+    }
+
+    private func updateUndoRetouchButton() {
+        let canUndo = settings.mode == .retouch
+            && !(retouchUndoSnapshots[currentIndex] ?? []).isEmpty
+        undoRetouchBarButton.isEnabled = canUndo
     }
 
     private func distanceBetween(_ lhs: CGPoint, _ rhs: CGPoint) -> CGFloat {
@@ -1177,6 +1414,7 @@ extension EditViewController: EditPhotoPagerViewDelegate {
         currentIndex = index
         invalidateSpacingPreviewCache()
         updatePageLabel()
+        updateUndoRetouchButton()
         if settings.mode == .retouch {
             refreshRetouchPreview(at: index)
         } else {
@@ -1250,6 +1488,16 @@ extension EditViewController: UIGestureRecognizerDelegate {
         }
 
         return true
+    }
+}
+
+/// Keeps UISlider interaction from being cancelled by the controls UIScrollView.
+private final class ControlsScrollView: UIScrollView {
+    override func touchesShouldCancel(in view: UIView) -> Bool {
+        if view is UISlider || view.superview is UISlider {
+            return false
+        }
+        return super.touchesShouldCancel(in: view)
     }
 }
 

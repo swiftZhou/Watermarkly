@@ -3,6 +3,7 @@ import UIKit
 final class SliderRowView: UIView {
 
     var onValueChanged: ((Float) -> Void)?
+    var onEditingBegan: (() -> Void)?
     var onEditingEnded: (() -> Void)?
 
     private let titleLabel: UILabel = {
@@ -38,8 +39,14 @@ final class SliderRowView: UIView {
         slider.value = value
         valueLabel.text = formatter(value)
         setupLayout()
+        slider.addTarget(self, action: #selector(sliderEditingBegan), for: .touchDown)
         slider.addTarget(self, action: #selector(sliderChanged), for: .valueChanged)
-        slider.addTarget(self, action: #selector(sliderEditingEnded), for: [.touchUpInside, .touchUpOutside, .touchCancel])
+        // Include drag-exit / cancel — UIScrollView often swallows plain touchUpInside.
+        slider.addTarget(
+            self,
+            action: #selector(sliderEditingEnded),
+            for: [.touchUpInside, .touchUpOutside, .touchCancel, .touchDragExit]
+        )
     }
 
     @available(*, unavailable)
@@ -78,12 +85,30 @@ final class SliderRowView: UIView {
         ])
     }
 
+    private var isEditingSlider = false
+
+    @objc private func sliderEditingBegan() {
+        guard !isEditingSlider else { return }
+        isEditingSlider = true
+        onEditingBegan?()
+    }
+
     @objc private func sliderChanged() {
         valueLabel.text = formatter(slider.value)
+        if slider.isTracking, !isEditingSlider {
+            isEditingSlider = true
+            onEditingBegan?()
+        }
         onValueChanged?(slider.value)
+        if isEditingSlider, !slider.isTracking {
+            isEditingSlider = false
+            onEditingEnded?()
+        }
     }
 
     @objc private func sliderEditingEnded() {
+        guard isEditingSlider else { return }
+        isEditingSlider = false
         onEditingEnded?()
     }
 }

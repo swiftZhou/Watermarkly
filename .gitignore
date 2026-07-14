@@ -1,4 +1,5 @@
-# LaMa Core ML model (~195 MB). Download before building Retouch AI inpaint:
-#   bash Scripts/download_lama_model.sh
+# Optional heavy LaMa model (~195 MB). Fast Retouch uses MI-GAN (~12 MB) instead:
+#   bash Scripts/download_migan_model.sh
+#   bash Scripts/download_lama_model.sh   # optional slow fallback
 Watermarkly/Watermarkly/LaMa.mlpackage/
 Models/LaMa.mlpackage/

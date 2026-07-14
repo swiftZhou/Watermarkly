@@ -101,7 +101,7 @@ final class SaveProgressViewController: UIViewController {
     func renderImages(
         sources: [UIImage],
         settings: WatermarkSettings,
-        retouchStrokes: [Int: [CGPoint]] = [:],
+        retouchStrokePaths: [Int: [[CGPoint]]] = [:],
         completion: @escaping ([UIImage]) -> Void
     ) {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -111,10 +111,10 @@ final class SaveProgressViewController: UIViewController {
                 autoreleasepool {
                     let rendered: UIImage
                     if settings.mode == .retouch {
-                        let strokes = retouchStrokes[index] ?? []
+                        let paths = retouchStrokePaths[index] ?? []
                         rendered = WatermarkEngine.applyRetouch(
                             to: source,
-                            normalizedStrokes: strokes,
+                            normalizedStrokePaths: paths,
                             brushDiameter: settings.retouchBrushSize
                         )
                     } else {

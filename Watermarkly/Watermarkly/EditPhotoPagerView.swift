@@ -42,6 +42,7 @@ final class EditPhotoPagerView: UIView {
     private var lastLayoutBounds: CGSize = .zero
     /// When false (e.g. Retouch mode), horizontal page swipes stay disabled even after zooming out.
     private var allowsPaging = true
+    private var restorePagingDisabledAfterAnimation = false
 
     private lazy var collectionView: EditPhotoCollectionView = {
         let layout = UICollectionViewFlowLayout()
@@ -115,8 +116,35 @@ final class EditPhotoPagerView: UIView {
         guard imageCount > 0 else { return }
         let clamped = min(max(index, 0), imageCount - 1)
         currentPage = clamped
-        let offsetX = CGFloat(clamped) * collectionView.bounds.width
-        collectionView.setContentOffset(CGPoint(x: offsetX, y: 0), animated: animated)
+        collectionView.layoutIfNeeded()
+
+        guard collectionView.bounds.width > 1,
+              collectionView.numberOfItems(inSection: 0) > clamped else {
+            DispatchQueue.main.async { [weak self] in
+                self?.scrollToPage(clamped, animated: false)
+            }
+            return
+        }
+
+        // Programmatic jumps must temporarily allow scrolling when swipe-paging is disabled
+        // (Retouch). Calling setContentOffset while isScrollEnabled == false is flaky.
+        let pagingLocked = !allowsPaging
+        if pagingLocked {
+            collectionView.isScrollEnabled = true
+            collectionView.panGestureRecognizer.isEnabled = false
+        }
+
+        let indexPath = IndexPath(item: clamped, section: 0)
+        collectionView.scrollToItem(at: indexPath, at: .centeredHorizontally, animated: animated)
+
+        if pagingLocked {
+            if animated {
+                restorePagingDisabledAfterAnimation = true
+            } else {
+                collectionView.layoutIfNeeded()
+                updateCollectionScrollEnabled(forZoomScale: visiblePreviewView()?.effectiveZoomScale ?? 1)
+            }
+        }
     }
 
     var isPagingEnabled: Bool {
@@ -178,6 +206,7 @@ extension EditPhotoPagerView: UICollectionViewDataSource, UICollectionViewDelega
     }
 
     func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+        finishProgrammaticScrollIfNeeded()
         let page = pageIndex(for: scrollView)
         guard page != currentPage, page >= 0, page < imageCount else { return }
         currentPage = page
@@ -186,11 +215,22 @@ extension EditPhotoPagerView: UICollectionViewDataSource, UICollectionViewDelega
 
     func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
         if !decelerate {
+            finishProgrammaticScrollIfNeeded()
             let page = pageIndex(for: scrollView)
             guard page != currentPage, page >= 0, page < imageCount else { return }
             currentPage = page
             delegate?.photoPager(self, didScrollToPage: page)
         }
+    }
+
+    func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
+        finishProgrammaticScrollIfNeeded()
+    }
+
+    private func finishProgrammaticScrollIfNeeded() {
+        guard restorePagingDisabledAfterAnimation else { return }
+        restorePagingDisabledAfterAnimation = false
+        updateCollectionScrollEnabled(forZoomScale: visiblePreviewView()?.effectiveZoomScale ?? 1)
     }
 }
 
@@ -227,10 +267,13 @@ final class EditPhotoPagerCell: UICollectionViewCell {
         super.prepareForReuse()
         photoIndex = -1
         zoomablePreview.onZoomScaleChanged = nil
-        zoomablePreview.image = nil
-        zoomablePreview.resetWatermarkLiveAdjustments()
+        zoomablePreview.retouchDelegate = nil
+        // Disable retouch first so transform/anchor are restored before any zoom reset.
         zoomablePreview.isRetouchDrawingEnabled = false
-        zoomablePreview.setZoomScale(1, animated: false)
+        zoomablePreview.hideBrushSizeIndicator()
+        zoomablePreview.resetRetouchZoom()
+        zoomablePreview.resetWatermarkLiveAdjustments()
+        zoomablePreview.image = nil
     }
 
     func prepareForPhoto(at index: Int) {
