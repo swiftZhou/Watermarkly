@@ -15,6 +15,25 @@ enum L10n {
 
     static var appName: String { tr("Watermarkly") }
     static var homeSubtitle: String { tr("Batch protect your product photos") }
+    static var homeCutoutTitle: String { tr("Smart Cutout") }
+    static var homeCutoutSubtitle: String {
+        tr("Pull the product out of the background and drop it on clean white.")
+    }
+    static var homeTiledSubtitle: String {
+        tr("Stamp your mark all over the photo so nobody can swipe it clean.")
+    }
+    static var homeCornerSubtitle: String {
+        tr("Park a small logo or mark in one corner—simple and out of the way.")
+    }
+    static var homeCardSubtitle: String {
+        tr("Give the photo a neat frame with a short caption underneath.")
+    }
+    static var homeRetouchSubtitle: String {
+        tr("Cover little spots or details you don’t want shoppers to see.")
+    }
+    static var homeCollageSubtitle: String {
+        tr("Line up a few photos into one collage that’s ready to post.")
+    }
     static var selectPhotos: String { tr("Select Photos") }
     static var unlimitedSavesUnlocked: String { tr("Unlimited saves unlocked") }
     static func freeSavesRemaining(_ count: Int) -> String {

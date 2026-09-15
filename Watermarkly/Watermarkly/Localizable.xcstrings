@@ -4794,6 +4794,335 @@
           }
         }
       }
+    },
+    "Smart Cutout": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Smart Cutout"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Détourage intelligent"
+          }
+        },
+        "fr-CA": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Détourage intelligent"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Intelligentes Freistellen"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "스마트 누끼"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "スマート切り抜き"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "智能摳圖"
+          }
+        }
+      }
+    },
+    "Stamp your mark all over the photo so nobody can swipe it clean.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stamp your mark all over the photo so nobody can swipe it clean."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apposez votre marque partout sur la photo pour qu’on ne puisse pas la voler facilement."
+          }
+        },
+        "fr-CA": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apposez votre marque partout sur la photo pour qu’on ne puisse pas la voler facilement."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verteile dein Wasserzeichen über das ganze Foto, damit es schwer zu stehlen ist."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "사진 전체에 워터마크를 찍어 쉽게 훔쳐 쓰지 못하게 하세요."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "写真全体にマークを入れて、盗用されにくくします。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把浮水印鋪滿整張照片，讓人不好直接盜用。"
+          }
+        }
+      }
+    },
+    "Park a small logo or mark in one corner—simple and out of the way.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Park a small logo or mark in one corner—simple and out of the way."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Placez un petit logo ou une marque dans un coin—simple et discret."
+          }
+        },
+        "fr-CA": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Placez un petit logo ou une marque dans un coin—simple et discret."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Setze ein kleines Logo oder Zeichen in eine Ecke—schlicht und unauffällig."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "모서리에 작은 로고나 마크를 넣어 깔끔하게 표시하세요."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "端に小さなロゴやマークを置いて、さりげなく保護します。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在角落放上小 Logo 或標記，簡單又不擋畫面。"
+          }
+        }
+      }
+    },
+    "Give the photo a neat frame with a short caption underneath.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Give the photo a neat frame with a short caption underneath."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajoutez un cadre soigné avec une courte légende en dessous."
+          }
+        },
+        "fr-CA": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajoutez un cadre soigné avec une courte légende en dessous."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gib dem Foto einen sauberen Rahmen mit einer kurzen Beschriftung darunter."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "사진에 깔끔한 프레임과 짧은 캡션을 달아 주세요."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "きれいな枠と下の短いキャプションで写真を仕上げます。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "給照片加個俐落邊框，並在下方寫一句說明。"
+          }
+        }
+      }
+    },
+    "Cover little spots or details you don’t want shoppers to see.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cover little spots or details you don’t want shoppers to see."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Masquez les petites taches ou détails que vous ne voulez pas montrer."
+          }
+        },
+        "fr-CA": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Masquez les petites taches ou détails que vous ne voulez pas montrer."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Decke kleine Stellen oder Details ab, die Käufer nicht sehen sollen."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "고객에게 보이고 싶지 않은 작은 얼룩이나 부분을 가리세요."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "見せたくない小さな汚れや部分を隠します。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "蓋住不想讓買家看到的小瑕疵或細節。"
+          }
+        }
+      }
+    },
+    "Line up a few photos into one collage that’s ready to post.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Line up a few photos into one collage that’s ready to post."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Assemblez plusieurs photos en un collage prêt à publier."
+          }
+        },
+        "fr-CA": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Assemblez plusieurs photos en un collage prêt à publier."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Füge ein paar Fotos zu einer Collage zusammen—bereit zum Posten."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "여러 장을 하나의 콜라주로 모아 바로 올릴 수 있게 하세요."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "数枚の写真を1枚のコラージュにまとめて投稿しやすくします。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把幾張照片排成一張拼圖，方便直接發佈。"
+          }
+        }
+      }
+    },
+    "Pull the product out of the background and drop it on clean white.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pull the product out of the background and drop it on clean white."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Détachez le produit de l’arrière-plan et placez-le sur un fond blanc net."
+          }
+        },
+        "fr-CA": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Détachez le produit de l’arrière-plan et placez-le sur un fond blanc net."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Löse das Produkt vom Hintergrund und setze es auf sauberes Weiß."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "배경에서 제품을 분리해 깨끗한 흰 배경에 올려 주세요."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "背景から商品を切り抜き、きれいな白背景に置き換えます。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把商品從背景裡抠出來，放到乾淨的白底上。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

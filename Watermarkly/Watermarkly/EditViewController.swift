@@ -8,6 +8,8 @@ final class EditViewController: UIViewController {
     private var images: [UIImage]
     private var settings = WatermarkSettings()
     private var currentIndex = 0
+    private let opensCollageOnAppear: Bool
+    private var didAutoPresentCollage = false
     private var previewTask: DispatchWorkItem?
     private var overlayRenderInFlight = false
     private var overlayRenderQueued = false
@@ -91,56 +93,49 @@ final class EditViewController: UIViewController {
 
     private let pageLabel: UILabel = {
         let label = UILabel()
-        label.font = .systemFont(ofSize: 14, weight: .medium)
-        label.textColor = AppTheme.secondaryText
+        label.font = .systemFont(ofSize: 14, weight: .semibold)
+        label.textColor = AppTheme.primaryText
         label.textAlignment = .center
+        label.setContentHuggingPriority(.defaultLow, for: .horizontal)
         return label
     }()
 
     private lazy var previousPhotoButton: UIButton = {
-        var config = UIButton.Configuration.gray()
-        config.cornerStyle = .fixed
-        config.background.cornerRadius = AppTheme.cornerRadius
-        config.title = L10n.previous
-        config.image = UIImage(systemName: "chevron.left")
-        config.imagePadding = 6
-        config.baseForegroundColor = AppTheme.primaryText
-        let button = UIButton(configuration: config)
-        button.addTarget(self, action: #selector(previousPhotoTapped), for: .touchUpInside)
-        return button
+        makePhotoNavButton(systemName: "chevron.left", action: #selector(previousPhotoTapped))
     }()
 
     private lazy var nextPhotoButton: UIButton = {
-        var config = UIButton.Configuration.gray()
-        config.cornerStyle = .fixed
-        config.background.cornerRadius = AppTheme.cornerRadius
-        config.title = L10n.next
-        config.image = UIImage(systemName: "chevron.right")
-        config.imagePlacement = .trailing
-        config.imagePadding = 6
-        config.baseForegroundColor = AppTheme.primaryText
-        let button = UIButton(configuration: config)
-        button.addTarget(self, action: #selector(nextPhotoTapped), for: .touchUpInside)
-        return button
-    }()
-
-    private lazy var photoNavStack: UIStackView = {
-        let stack = UIStackView(arrangedSubviews: [previousPhotoButton, nextPhotoButton])
-        stack.axis = .horizontal
-        stack.spacing = 12
-        stack.distribution = .fillEqually
-        stack.isHidden = true
-        return stack
+        makePhotoNavButton(systemName: "chevron.right", action: #selector(nextPhotoTapped))
     }()
 
     private lazy var pageChromeStack: UIStackView = {
-        let stack = UIStackView(arrangedSubviews: [photoNavStack, pageLabel])
-        stack.axis = .vertical
-        stack.spacing = 6
-        stack.alignment = .fill
+        let stack = UIStackView(arrangedSubviews: [previousPhotoButton, pageLabel, nextPhotoButton])
+        stack.axis = .horizontal
+        stack.spacing = 10
+        stack.alignment = .center
+        stack.distribution = .fill
         stack.translatesAutoresizingMaskIntoConstraints = false
         return stack
     }()
+
+    private func makePhotoNavButton(systemName: String, action: Selector) -> UIButton {
+        var config = UIButton.Configuration.plain()
+        config.image = UIImage(systemName: systemName)
+        config.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 14, weight: .semibold)
+        config.baseForegroundColor = AppTheme.accent
+        config.background.backgroundColor = .white
+        config.background.cornerRadius = 16
+        config.background.strokeColor = AppTheme.fieldBorder
+        config.background.strokeWidth = 1
+        config.contentInsets = NSDirectionalEdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8)
+        let button = UIButton(configuration: config)
+        button.layer.shadowColor = UIColor.black.cgColor
+        button.layer.shadowOpacity = 0.06
+        button.layer.shadowRadius = 4
+        button.layer.shadowOffset = CGSize(width: 0, height: 1)
+        button.addTarget(self, action: action, for: .touchUpInside)
+        return button
+    }
 
     private lazy var saveAllBarButton = UIBarButtonItem(
         title: L10n.saveAll,
@@ -371,9 +366,11 @@ final class EditViewController: UIViewController {
 
     // MARK: - Init
 
-    init(images: [UIImage]) {
+    init(images: [UIImage], initialMode: WatermarkMode = .tiled, opensCollageOnAppear: Bool = false) {
         self.images = images
+        self.opensCollageOnAppear = opensCollageOnAppear
         super.init(nibName: nil, bundle: nil)
+        settings.mode = initialMode
     }
 
     @available(*, unavailable)
@@ -393,6 +390,7 @@ final class EditViewController: UIViewController {
         textField.text = settings.text
         textField.delegate = self
         textField.addTarget(self, action: #selector(textChanged), for: .editingChanged)
+        modeControl.selectedSegmentIndex = settings.mode.rawValue
 
         setupLayout()
         photoPager.dataSource = self
@@ -426,6 +424,10 @@ final class EditViewController: UIViewController {
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         disableNavigationSwipeBack()
+        if opensCollageOnAppear, !didAutoPresentCollage {
+            didAutoPresentCollage = true
+            collageTapped()
+        }
     }
 
     override func viewWillDisappear(_ animated: Bool) {
@@ -499,8 +501,10 @@ final class EditViewController: UIViewController {
             pageChromeStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             pageChromeStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
 
-            previousPhotoButton.heightAnchor.constraint(equalToConstant: 36),
-            nextPhotoButton.heightAnchor.constraint(equalToConstant: 36),
+            previousPhotoButton.widthAnchor.constraint(equalToConstant: 32),
+            previousPhotoButton.heightAnchor.constraint(equalToConstant: 32),
+            nextPhotoButton.widthAnchor.constraint(equalToConstant: 32),
+            nextPhotoButton.heightAnchor.constraint(equalToConstant: 32),
 
             controlsScrollView.topAnchor.constraint(equalTo: pageChromeStack.bottomAnchor, constant: 8),
             controlsScrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -874,6 +878,8 @@ extension EditViewController {
 
     private func updatePageLabel() {
         let isRetouch = settings.mode == .retouch
+        let showNav = isRetouch && images.count > 1
+
         if images.count > 1 {
             if isRetouch {
                 pageLabel.text = L10n.photoPageRetouch(index: currentIndex + 1, total: images.count)
@@ -883,20 +889,24 @@ extension EditViewController {
         } else {
             pageLabel.text = L10n.photoPageSingle
         }
-        updatePhotoNavButtons()
-    }
 
-    private func updatePhotoNavButtons() {
-        let showNav = settings.mode == .retouch && images.count > 1
-        photoNavStack.isHidden = !showNav
+        pageLabel.font = .systemFont(ofSize: 14, weight: showNav ? .semibold : .medium)
+        pageLabel.textColor = showNav ? AppTheme.primaryText : AppTheme.secondaryText
+
+        previousPhotoButton.isHidden = !showNav
+        nextPhotoButton.isHidden = !showNav
         guard showNav else { return }
 
         let canGoPrevious = currentIndex > 0
         let canGoNext = currentIndex < images.count - 1
         previousPhotoButton.isEnabled = canGoPrevious
         nextPhotoButton.isEnabled = canGoNext
-        previousPhotoButton.alpha = canGoPrevious ? 1 : 0.4
-        nextPhotoButton.alpha = canGoNext ? 1 : 0.4
+        previousPhotoButton.alpha = canGoPrevious ? 1 : 0.35
+        nextPhotoButton.alpha = canGoNext ? 1 : 0.35
+    }
+
+    private func updatePhotoNavButtons() {
+        updatePageLabel()
     }
 
     @objc private func previousPhotoTapped() {

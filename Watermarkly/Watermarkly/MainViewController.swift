@@ -5,39 +5,87 @@ import SafariServices
 
 final class MainViewController: UIViewController, StoreManagerDelegate {
 
+    private let scrollView: UIScrollView = {
+        let scroll = UIScrollView()
+        scroll.alwaysBounceVertical = true
+        scroll.showsVerticalScrollIndicator = false
+        scroll.contentInsetAdjustmentBehavior = .never
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+        return scroll
+    }()
+
+    private let contentStack: UIStackView = {
+        let stack = UIStackView()
+        stack.axis = .vertical
+        stack.spacing = 20
+        stack.alignment = .fill
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        return stack
+    }()
+
     private let titleLabel: UILabel = {
         let label = UILabel()
         label.text = L10n.appName
         label.font = .systemFont(ofSize: 34, weight: .bold)
         label.textColor = AppTheme.primaryText
         label.textAlignment = .center
-        label.translatesAutoresizingMaskIntoConstraints = false
         return label
     }()
 
     private let subtitleLabel: UILabel = {
         let label = UILabel()
         label.text = L10n.homeSubtitle
-        label.font = .systemFont(ofSize: 17, weight: .regular)
+        label.font = .systemFont(ofSize: 16, weight: .regular)
         label.textColor = AppTheme.secondaryText
         label.textAlignment = .center
         label.numberOfLines = 0
-        label.translatesAutoresizingMaskIntoConstraints = false
         return label
     }()
 
-    private lazy var selectButton: UIButton = {
-        var config = UIButton.Configuration.filled()
-        config.title = L10n.selectPhotos
-        config.baseBackgroundColor = AppTheme.accent
-        config.baseForegroundColor = .white
-        config.cornerStyle = .fixed
-        config.background.cornerRadius = AppTheme.cornerRadius
-        config.contentInsets = NSDirectionalEdgeInsets(top: 16, leading: 24, bottom: 16, trailing: 24)
-        let button = UIButton(configuration: config)
-        button.translatesAutoresizingMaskIntoConstraints = false
-        button.addTarget(self, action: #selector(selectPhotosTapped), for: .touchUpInside)
-        return button
+    private lazy var featureCardsStack: UIStackView = {
+        let cards = [
+            FeaturePreviewCardView(
+                title: L10n.modeTiled,
+                subtitle: L10n.homeTiledSubtitle,
+                symbolName: "rectangle.grid.2x2",
+                action: .watermark(.tiled)
+            ),
+            FeaturePreviewCardView(
+                title: L10n.modeCorner,
+                subtitle: L10n.homeCornerSubtitle,
+                symbolName: "rectangle.inset.filled",
+                action: .watermark(.corner)
+            ),
+            FeaturePreviewCardView(
+                title: L10n.modeCard,
+                subtitle: L10n.homeCardSubtitle,
+                symbolName: "photo.on.rectangle.angled",
+                action: .watermark(.card)
+            ),
+            FeaturePreviewCardView(
+                title: L10n.modeRetouch,
+                subtitle: L10n.homeRetouchSubtitle,
+                symbolName: "paintbrush.pointed",
+                action: .watermark(.retouch)
+            ),
+            FeaturePreviewCardView(
+                title: L10n.collageTitle,
+                subtitle: L10n.homeCollageSubtitle,
+                symbolName: "square.grid.3x3",
+                action: .collage
+            ),
+            FeaturePreviewCardView(
+                title: L10n.homeCutoutTitle,
+                subtitle: L10n.homeCutoutSubtitle,
+                symbolName: "person.crop.rectangle",
+                action: .watermark(.cutout)
+            )
+        ]
+        let stack = UIStackView(arrangedSubviews: cards)
+        stack.axis = .vertical
+        stack.spacing = 12
+        stack.alignment = .fill
+        return stack
     }()
 
     private let trialLabel: UILabel = {
@@ -45,7 +93,6 @@ final class MainViewController: UIViewController, StoreManagerDelegate {
         label.font = .systemFont(ofSize: 15, weight: .medium)
         label.textColor = AppTheme.secondaryText
         label.textAlignment = .center
-        label.translatesAutoresizingMaskIntoConstraints = false
         return label
     }()
 
@@ -64,22 +111,10 @@ final class MainViewController: UIViewController, StoreManagerDelegate {
         return button
     }()
 
-    private lazy var featureCardsStack: UIStackView = {
-        let stack = UIStackView(arrangedSubviews: [
-            FeaturePreviewCardView(title: L10n.modeTiled, symbolName: "rectangle.grid.2x2"),
-            FeaturePreviewCardView(title: L10n.modeCorner, symbolName: "rectangle.inset.filled"),
-            FeaturePreviewCardView(title: L10n.modeCard, symbolName: "photo.on.rectangle.angled"),
-            FeaturePreviewCardView(title: L10n.modeRetouch, symbolName: "paintbrush.pointed")
-        ])
-        stack.axis = .horizontal
-        stack.spacing = 10
-        stack.distribution = .fillEqually
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        return stack
-    }()
-
     private var isLoadingPhotos = false
+    private var pendingLaunchAction: HomeLaunchAction = .watermark(.tiled)
     private var lastWatermarkCanvasSize: CGSize = .zero
+    private var contentTopConstraint: NSLayoutConstraint?
 
     private let backgroundWatermarkView: UIImageView = {
         let imageView = UIImageView()
@@ -104,6 +139,13 @@ final class MainViewController: UIViewController, StoreManagerDelegate {
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         updateBackgroundWatermarkImageIfNeeded()
+        updateContentTopInset()
+    }
+
+    private func updateContentTopInset() {
+        let top = view.safeAreaInsets.top
+        guard contentTopConstraint?.constant != top else { return }
+        contentTopConstraint?.constant = top
     }
 
     private func makeBackgroundWatermarkImage(for imageSize: CGSize) -> UIImage {
@@ -132,7 +174,6 @@ final class MainViewController: UIViewController, StoreManagerDelegate {
 
     private func setupBackgroundWatermark() {
         view.insertSubview(backgroundWatermarkView, at: 0)
-
         NSLayoutConstraint.activate([
             backgroundWatermarkView.topAnchor.constraint(equalTo: view.topAnchor),
             backgroundWatermarkView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -145,7 +186,6 @@ final class MainViewController: UIViewController, StoreManagerDelegate {
         let canvasSize = view.bounds.size
         guard canvasSize.width > 0, canvasSize.height > 0 else { return }
         guard canvasSize != lastWatermarkCanvasSize else { return }
-
         lastWatermarkCanvasSize = canvasSize
         backgroundWatermarkView.image = makeBackgroundWatermarkImage(for: canvasSize)
     }
@@ -191,43 +231,44 @@ final class MainViewController: UIViewController, StoreManagerDelegate {
     }
 
     private func setupLayout() {
-        view.addSubview(titleLabel)
-        view.addSubview(subtitleLabel)
-        view.addSubview(featureCardsStack)
-        view.addSubview(selectButton)
-        view.addSubview(trialLabel)
-        view.addSubview(privacyPolicyButton)
+        let header = UIStackView(arrangedSubviews: [titleLabel, subtitleLabel])
+        header.axis = .vertical
+        header.spacing = 8
+        header.alignment = .fill
+
+        contentStack.addArrangedSubview(header)
+        contentStack.addArrangedSubview(featureCardsStack)
+        contentStack.addArrangedSubview(trialLabel)
+        contentStack.addArrangedSubview(privacyPolicyButton)
+        contentStack.setCustomSpacing(28, after: header)
+        contentStack.setCustomSpacing(28, after: featureCardsStack)
+        contentStack.setCustomSpacing(20, after: trialLabel)
+
+        for case let card as FeaturePreviewCardView in featureCardsStack.arrangedSubviews {
+            card.addTarget(self, action: #selector(featureCardTapped(_:)), for: .touchUpInside)
+        }
+
+        view.addSubview(scrollView)
+        scrollView.addSubview(contentStack)
+
+        let topConstraint = contentStack.topAnchor.constraint(
+            equalTo: scrollView.contentLayoutGuide.topAnchor,
+            constant: 12
+        )
+        contentTopConstraint = topConstraint
 
         NSLayoutConstraint.activate([
-            titleLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 36),
-            titleLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            titleLabel.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 24),
-            titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -24),
+            scrollView.topAnchor.constraint(equalTo: view.topAnchor),
+            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
 
-            subtitleLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 10),
-            subtitleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 32),
-            subtitleLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -32),
-
-            featureCardsStack.topAnchor.constraint(equalTo: subtitleLabel.bottomAnchor, constant: 36),
-            featureCardsStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-            featureCardsStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-            featureCardsStack.heightAnchor.constraint(equalToConstant: 100),
-
-            selectButton.topAnchor.constraint(equalTo: featureCardsStack.bottomAnchor, constant: 36),
-            selectButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-
-            trialLabel.topAnchor.constraint(equalTo: selectButton.bottomAnchor, constant: 16),
-            trialLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
-            trialLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
-
-            privacyPolicyButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            privacyPolicyButton.bottomAnchor.constraint(
-                equalTo: view.safeAreaLayoutGuide.bottomAnchor,
-                constant: -12
-            ),
-            privacyPolicyButton.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 24),
-            privacyPolicyButton.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -24)
+            topConstraint,
+            contentStack.leadingAnchor.constraint(equalTo: scrollView.frameLayoutGuide.leadingAnchor, constant: 20),
+            contentStack.trailingAnchor.constraint(equalTo: scrollView.frameLayoutGuide.trailingAnchor, constant: -20),
+            contentStack.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor, constant: -24)
         ])
+        updateContentTopInset()
     }
 
     @objc private func privacyPolicyTapped() {
@@ -272,7 +313,12 @@ final class MainViewController: UIViewController, StoreManagerDelegate {
         present(nav, animated: true)
     }
 
-    @objc private func selectPhotosTapped() {
+    @objc private func featureCardTapped(_ sender: FeaturePreviewCardView) {
+        pendingLaunchAction = sender.action
+        presentPhotoPicker()
+    }
+
+    private func presentPhotoPicker() {
         guard PrivacyConsent.hasAgreed else {
             PrivacyConsent.presentIfNeeded(from: self)
             return
@@ -288,6 +334,17 @@ final class MainViewController: UIViewController, StoreManagerDelegate {
         let picker = PHPickerViewController(configuration: config)
         picker.delegate = self
         present(picker, animated: true)
+    }
+
+    private func openEditor(with images: [UIImage]) {
+        let editVC: EditViewController
+        switch pendingLaunchAction {
+        case .watermark(let mode):
+            editVC = EditViewController(images: images, initialMode: mode)
+        case .collage:
+            editVC = EditViewController(images: images, initialMode: .cutout, opensCollageOnAppear: true)
+        }
+        navigationController?.pushViewController(editVC, animated: true)
     }
 
     private func loadImage(from result: PHPickerResult, index: Int, completion: @escaping (Int, UIImage?) -> Void) {
@@ -308,12 +365,24 @@ final class MainViewController: UIViewController, StoreManagerDelegate {
     }
 }
 
-private final class FeaturePreviewCardView: UIView {
+// MARK: - Home launch
+
+private enum HomeLaunchAction {
+    case watermark(WatermarkMode)
+    case collage
+}
+
+// MARK: - Feature cards
+
+private final class FeaturePreviewCardView: UIControl {
+
+    let action: HomeLaunchAction
 
     private let iconContainer: UIView = {
         let view = UIView()
-        view.backgroundColor = AppTheme.background
-        view.layer.cornerRadius = 8
+        view.isUserInteractionEnabled = false
+        view.backgroundColor = AppTheme.accent.withAlphaComponent(0.08)
+        view.layer.cornerRadius = 12
         view.translatesAutoresizingMaskIntoConstraints = false
         return view
     }()
@@ -328,56 +397,86 @@ private final class FeaturePreviewCardView: UIView {
 
     private let titleLabel: UILabel = {
         let label = UILabel()
-        label.font = .systemFont(ofSize: 13, weight: .semibold)
+        label.font = .systemFont(ofSize: 17, weight: .semibold)
         label.textColor = AppTheme.primaryText
-        label.textAlignment = .center
         label.translatesAutoresizingMaskIntoConstraints = false
         return label
     }()
 
-    init(title: String, symbolName: String) {
+    private let subtitleLabel: UILabel = {
+        let label = UILabel()
+        label.font = .systemFont(ofSize: 14, weight: .regular)
+        label.textColor = AppTheme.secondaryText
+        label.numberOfLines = 0
+        label.translatesAutoresizingMaskIntoConstraints = false
+        return label
+    }()
+
+    private let chevronView: UIImageView = {
+        let imageView = UIImageView(image: UIImage(systemName: "chevron.right"))
+        imageView.tintColor = AppTheme.secondaryText.withAlphaComponent(0.55)
+        imageView.contentMode = .scaleAspectFit
+        imageView.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 12, weight: .semibold)
+        imageView.translatesAutoresizingMaskIntoConstraints = false
+        return imageView
+    }()
+
+    override var isHighlighted: Bool {
+        didSet { alpha = isHighlighted ? 0.85 : 1 }
+    }
+
+    init(title: String, subtitle: String, symbolName: String, action: HomeLaunchAction) {
+        self.action = action
         super.init(frame: .zero)
         titleLabel.text = title
+        subtitleLabel.text = subtitle
         iconView.image = UIImage(systemName: symbolName)
-        iconView.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 26, weight: .medium)
-        setupCardAppearance()
-        setupLayout()
-    }
+        iconView.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 20, weight: .semibold)
 
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    private func setupCardAppearance() {
-        backgroundColor = UIColor(red: 1, green: 1, blue: 1, alpha: 1)
-        layer.cornerRadius = 12
+        backgroundColor = .white
+        layer.cornerRadius = 14
         layer.shadowColor = UIColor.black.cgColor
-        layer.shadowOpacity = 0.08
+        layer.shadowOpacity = 0.06
         layer.shadowOffset = CGSize(width: 0, height: 2)
-        layer.shadowRadius = 8
-    }
+        layer.shadowRadius = 6
 
-    private func setupLayout() {
+        let textStack = UIStackView(arrangedSubviews: [titleLabel, subtitleLabel])
+        textStack.axis = .vertical
+        textStack.spacing = 4
+        textStack.alignment = .fill
+        textStack.isUserInteractionEnabled = false
+        textStack.translatesAutoresizingMaskIntoConstraints = false
+
         addSubview(iconContainer)
         iconContainer.addSubview(iconView)
-        addSubview(titleLabel)
+        addSubview(textStack)
+        addSubview(chevronView)
 
         NSLayoutConstraint.activate([
-            iconContainer.topAnchor.constraint(equalTo: topAnchor, constant: 12),
-            iconContainer.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
-            iconContainer.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
-            iconContainer.heightAnchor.constraint(equalToConstant: 52),
+            iconContainer.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14),
+            iconContainer.centerYAnchor.constraint(equalTo: centerYAnchor),
+            iconContainer.widthAnchor.constraint(equalToConstant: 48),
+            iconContainer.heightAnchor.constraint(equalToConstant: 48),
+            iconContainer.topAnchor.constraint(greaterThanOrEqualTo: topAnchor, constant: 14),
+            iconContainer.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor, constant: -14),
 
             iconView.centerXAnchor.constraint(equalTo: iconContainer.centerXAnchor),
             iconView.centerYAnchor.constraint(equalTo: iconContainer.centerYAnchor),
-            iconView.widthAnchor.constraint(lessThanOrEqualTo: iconContainer.widthAnchor, constant: -16),
-            iconView.heightAnchor.constraint(lessThanOrEqualTo: iconContainer.heightAnchor, constant: -12),
 
-            titleLabel.topAnchor.constraint(equalTo: iconContainer.bottomAnchor, constant: 8),
-            titleLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
-            titleLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
-            titleLabel.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor, constant: -10)
+            chevronView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -14),
+            chevronView.centerYAnchor.constraint(equalTo: centerYAnchor),
+            chevronView.widthAnchor.constraint(equalToConstant: 10),
+
+            textStack.leadingAnchor.constraint(equalTo: iconContainer.trailingAnchor, constant: 12),
+            textStack.trailingAnchor.constraint(equalTo: chevronView.leadingAnchor, constant: -10),
+            textStack.topAnchor.constraint(equalTo: topAnchor, constant: 14),
+            textStack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -14)
         ])
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
     }
 }
 
@@ -387,7 +486,6 @@ extension MainViewController: PHPickerViewControllerDelegate {
         guard !results.isEmpty else { return }
 
         isLoadingPhotos = true
-        selectButton.isEnabled = false
 
         let group = DispatchGroup()
         var loaded: [(Int, UIImage)] = []
@@ -407,14 +505,13 @@ extension MainViewController: PHPickerViewControllerDelegate {
         group.notify(queue: .main) { [weak self] in
             guard let self else { return }
             self.isLoadingPhotos = false
-            self.selectButton.isEnabled = true
 
             let images = loaded.sorted { $0.0 < $1.0 }.map(\.1)
             guard !images.isEmpty else {
                 self.showAlert(title: L10n.unableToLoadPhotos, message: L10n.trySelectingDifferentImages)
                 return
             }
-            self.navigationController?.pushViewController(EditViewController(images: images), animated: true)
+            self.openEditor(with: images)
         }
     }
 
