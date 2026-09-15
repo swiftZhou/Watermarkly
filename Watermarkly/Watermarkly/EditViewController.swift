@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
 
 final class EditViewController: UIViewController {
 
-    private let images: [UIImage]
+    private var images: [UIImage]
     private var settings = WatermarkSettings()
     private var currentIndex = 0
     private var previewTask: DispatchWorkItem?
@@ -49,6 +49,8 @@ final class EditViewController: UIViewController {
         UIColor(red: 0.69, green: 0.32, blue: 0.87, alpha: 1)
     ]
     private var retouchColorButtons: [UIButton] = []
+    private var cutoutAppliedIndices = Set<Int>()
+    private var controlsBottomConstraint: NSLayoutConstraint?
 
     // MARK: - Preview
 
@@ -66,6 +68,19 @@ final class EditViewController: UIViewController {
     }()
 
     private let photoPager = EditPhotoPagerView()
+
+    private lazy var deletePhotoButton: UIButton = {
+        var config = UIButton.Configuration.plain()
+        config.image = UIImage(systemName: "minus.circle.fill")
+        config.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 20, weight: .bold)
+        config.contentInsets = .zero
+        let button = UIButton(configuration: config)
+        button.tintColor = .systemRed
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.accessibilityLabel = L10n.collageRemovePhoto
+        button.addTarget(self, action: #selector(deleteCurrentPhotoTapped), for: .touchUpInside)
+        return button
+    }()
 
     private let previewSpinner: UIActivityIndicatorView = {
         let spinner = UIActivityIndicatorView(style: .medium)
@@ -134,6 +149,13 @@ final class EditViewController: UIViewController {
         action: #selector(saveAllTapped)
     )
 
+    private lazy var collageBarButton = UIBarButtonItem(
+        image: UIImage(systemName: "square.grid.3x3"),
+        style: .plain,
+        target: self,
+        action: #selector(collageTapped)
+    )
+
     private lazy var undoRetouchBarButton: UIBarButtonItem = {
         let item = UIBarButtonItem(
             title: L10n.undo,
@@ -171,6 +193,22 @@ final class EditViewController: UIViewController {
         return control
     }()
 
+    private lazy var removeBackgroundButton: UIButton = {
+        var config = UIButton.Configuration.filled()
+        config.title = L10n.removeBackground
+        config.baseBackgroundColor = AppTheme.accent
+        config.baseForegroundColor = .white
+        config.cornerStyle = .fixed
+        config.background.cornerRadius = AppTheme.cornerRadius
+        config.contentInsets = NSDirectionalEdgeInsets(top: 20, leading: 24, bottom: 20, trailing: 24)
+        config.image = UIImage(systemName: "person.crop.rectangle")
+        config.imagePadding = 10
+        let button = UIButton(configuration: config)
+        button.isHidden = true
+        button.addTarget(self, action: #selector(removeBackgroundTapped), for: .touchUpInside)
+        return button
+    }()
+
     private let textField: UITextField = {
         let field = UITextField()
         field.placeholder = L10n.watermarkTextPlaceholder
@@ -185,6 +223,8 @@ final class EditViewController: UIViewController {
         field.leftViewMode = .always
         field.rightView = UIView(frame: CGRect(x: 0, y: 0, width: 12, height: 1))
         field.rightViewMode = .always
+        field.returnKeyType = .done
+        field.clearButtonMode = .whileEditing
         return field
     }()
 
@@ -348,9 +388,10 @@ final class EditViewController: UIViewController {
         title = L10n.edit
         view.backgroundColor = AppTheme.background
         navigationController?.navigationBar.tintColor = AppTheme.accent
-        navigationItem.rightBarButtonItems = [saveAllBarButton]
+        navigationItem.rightBarButtonItems = [saveAllBarButton, collageBarButton]
 
         textField.text = settings.text
+        textField.delegate = self
         textField.addTarget(self, action: #selector(textChanged), for: .editingChanged)
 
         setupLayout()
@@ -366,10 +407,15 @@ final class EditViewController: UIViewController {
         preloadBaseImages()
         refreshPreview(invalidateCache: true)
         updateRetouchInteraction()
+        registerKeyboardNotifications()
 
         let tap = UITapGestureRecognizer(target: self, action: #selector(dismissKeyboard))
         tap.cancelsTouchesInView = false
         view.addGestureRecognizer(tap)
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -384,6 +430,7 @@ final class EditViewController: UIViewController {
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
+        view.endEditing(true)
         guard isMovingFromParent else { return }
         restoreNavigationSwipeBack()
     }
@@ -396,11 +443,13 @@ final class EditViewController: UIViewController {
         view.addSubview(previewContainer)
         previewContainer.addSubview(photoPager)
         previewContainer.addSubview(previewSpinner)
+        previewContainer.addSubview(deletePhotoButton)
         view.addSubview(pageChromeStack)
         view.addSubview(controlsScrollView)
         controlsScrollView.addSubview(controlsStack)
 
         controlsStack.addArrangedSubview(modeControl)
+        controlsStack.addArrangedSubview(removeBackgroundButton)
         controlsStack.addArrangedSubview(textField)
         controlsStack.addArrangedSubview(frameCaptionRow)
         controlsStack.addArrangedSubview(logoButton)
@@ -441,6 +490,11 @@ final class EditViewController: UIViewController {
             previewSpinner.centerXAnchor.constraint(equalTo: previewContainer.centerXAnchor),
             previewSpinner.centerYAnchor.constraint(equalTo: previewContainer.centerYAnchor),
 
+            deletePhotoButton.topAnchor.constraint(equalTo: previewContainer.topAnchor, constant: 10),
+            deletePhotoButton.trailingAnchor.constraint(equalTo: previewContainer.trailingAnchor, constant: -10),
+            deletePhotoButton.widthAnchor.constraint(equalToConstant: 32),
+            deletePhotoButton.heightAnchor.constraint(equalToConstant: 32),
+
             pageChromeStack.topAnchor.constraint(equalTo: previewContainer.bottomAnchor, constant: 6),
             pageChromeStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             pageChromeStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
@@ -451,13 +505,66 @@ final class EditViewController: UIViewController {
             controlsScrollView.topAnchor.constraint(equalTo: pageChromeStack.bottomAnchor, constant: 8),
             controlsScrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             controlsScrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            controlsScrollView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
 
             controlsStack.topAnchor.constraint(equalTo: controlsScrollView.contentLayoutGuide.topAnchor, constant: 8),
             controlsStack.leadingAnchor.constraint(equalTo: controlsScrollView.frameLayoutGuide.leadingAnchor, constant: 16),
             controlsStack.trailingAnchor.constraint(equalTo: controlsScrollView.frameLayoutGuide.trailingAnchor, constant: -16),
             controlsStack.bottomAnchor.constraint(equalTo: controlsScrollView.contentLayoutGuide.bottomAnchor, constant: -16)
         ])
+
+        let bottom = controlsScrollView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor)
+        bottom.isActive = true
+        controlsBottomConstraint = bottom
+    }
+
+    // MARK: - Keyboard
+
+    private func registerKeyboardNotifications() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(keyboardWillChangeFrame(_:)),
+            name: UIResponder.keyboardWillChangeFrameNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(keyboardWillHide(_:)),
+            name: UIResponder.keyboardWillHideNotification,
+            object: nil
+        )
+    }
+
+    @objc private func keyboardWillChangeFrame(_ notification: Notification) {
+        guard
+            let userInfo = notification.userInfo,
+            let endFrame = userInfo[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect
+        else { return }
+
+        let endFrameInView = view.convert(endFrame, from: nil)
+        let safeBottom = view.safeAreaLayoutGuide.layoutFrame.maxY
+        let overlap = max(0, safeBottom - endFrameInView.minY)
+        animateKeyboardInset(overlap, userInfo: userInfo)
+    }
+
+    @objc private func keyboardWillHide(_ notification: Notification) {
+        animateKeyboardInset(0, userInfo: notification.userInfo)
+    }
+
+    private func animateKeyboardInset(_ overlap: CGFloat, userInfo: [AnyHashable: Any]?) {
+        controlsBottomConstraint?.constant = -overlap
+
+        let duration = (userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double) ?? 0.25
+        let curveRaw = (userInfo?[UIResponder.keyboardAnimationCurveUserInfoKey] as? UInt) ?? 7
+        let options = UIView.AnimationOptions(rawValue: curveRaw << 16)
+
+        UIView.animate(withDuration: duration, delay: 0, options: [options, .beginFromCurrentState]) {
+            self.view.layoutIfNeeded()
+        } completion: { _ in
+            guard self.textField.isFirstResponder else { return }
+            let rect = self.textField.convert(self.textField.bounds, to: self.controlsScrollView)
+                .insetBy(dx: 0, dy: -12)
+            self.controlsScrollView.scrollRectToVisible(rect, animated: true)
+        }
     }
 
     private func currentPreviewView() -> ZoomableImageView? {
@@ -546,6 +653,9 @@ final class EditViewController: UIViewController {
         updatePageLabel()
         if settings.mode == .retouch {
             refreshRetouchPreview(at: currentIndex)
+        } else if settings.mode == .cutout {
+            resetVisiblePreviewsToBase()
+            refreshPreview(invalidateCache: true)
         } else {
             resetVisiblePreviewsToBase()
             refreshPreview(invalidateCache: true)
@@ -573,6 +683,25 @@ final class EditViewController: UIViewController {
         settings.text = textField.text ?? ""
         refreshPreview(invalidateCache: true)
     }
+}
+
+extension EditViewController: UITextFieldDelegate {
+    func textFieldShouldReturn(_ textField: UITextField) -> Bool {
+        textField.resignFirstResponder()
+        return true
+    }
+
+    func textFieldDidBeginEditing(_ textField: UITextField) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            let rect = textField.convert(textField.bounds, to: self.controlsScrollView)
+                .insetBy(dx: 0, dy: -12)
+            self.controlsScrollView.scrollRectToVisible(rect, animated: true)
+        }
+    }
+}
+
+extension EditViewController {
 
     @objc private func frameCaptionToggled() {
         settings.frameShowsCaption = frameCaptionSwitch.isOn
@@ -593,6 +722,8 @@ final class EditViewController: UIViewController {
             settings.frameShowsCaption = frameCaptionSwitch.isOn
         case .retouch:
             settings.retouchBrushSize = brushDiameter(fromPercent: brushSizeRow.slider.value)
+        case .cutout:
+            break
         }
     }
 
@@ -607,7 +738,7 @@ final class EditViewController: UIViewController {
                 mode: settings.mode,
                 cornerPosition: settings.cornerPosition
             )
-        case .card, .retouch:
+        case .card, .cutout, .retouch:
             break
         }
     }
@@ -621,7 +752,7 @@ final class EditViewController: UIViewController {
             committedScale = settings.tiledScale
         case .corner:
             committedScale = settings.cornerScale
-        case .card, .retouch:
+        case .card, .cutout, .retouch:
             committedScale = 1
         }
     }
@@ -664,7 +795,7 @@ final class EditViewController: UIViewController {
                 rawValue: cornerPositionControl.selectedSegmentIndex
             ) ?? settings.cornerPosition
             return previewSettings
-        case .card, .retouch:
+        case .card, .cutout, .retouch:
             return nil
         }
     }
@@ -710,7 +841,7 @@ final class EditViewController: UIViewController {
                     self.committedScale = overlaySettings.tiledScale
                 case .corner:
                     self.committedScale = overlaySettings.cornerScale
-                case .card, .retouch:
+                case .card, .cutout, .retouch:
                     break
                 }
                 self.updateLiveWatermarkPreview()
@@ -776,6 +907,68 @@ final class EditViewController: UIViewController {
         goToPhoto(at: currentIndex + 1)
     }
 
+    @objc private func deleteCurrentPhotoTapped() {
+        removePhoto(at: currentIndex)
+    }
+
+    private func removePhoto(at index: Int) {
+        guard images.indices.contains(index) else { return }
+        guard images.count > 1 else {
+            showAlert(title: L10n.edit, message: L10n.collageNeedOnePhoto)
+            return
+        }
+
+        hideBrushSizeIndicator()
+        photoPager.previewView(at: index)?.isRetouchDrawingEnabled = false
+        photoPager.previewView(at: index)?.retouchDelegate = nil
+
+        images.remove(at: index)
+        previewCache = remappedCache(previewCache, removing: index)
+        baseImageCache = remappedCache(baseImageCache, removing: index)
+        retouchCompositeCache = remappedCache(retouchCompositeCache, removing: index)
+        retouchMaskCache = remappedCache(retouchMaskCache, removing: index)
+        retouchActiveStroke = remappedCache(retouchActiveStroke, removing: index)
+        retouchNormalizedStrokePaths = remappedCache(retouchNormalizedStrokePaths, removing: index)
+        retouchUndoSnapshots = remappedCache(retouchUndoSnapshots, removing: index)
+        retouchCommitGeneration = remappedCache(retouchCommitGeneration, removing: index)
+        cutoutAppliedIndices = remappedSet(cutoutAppliedIndices, removing: index)
+        invalidateSpacingPreviewCache()
+        previewPreloadGeneration += 1
+        previewTask?.cancel()
+
+        let nextIndex = min(index, images.count - 1)
+        currentIndex = nextIndex
+        photoPager.configure(imageCount: images.count, initialPage: currentIndex)
+        updatePageLabel()
+        updateRetouchInteraction()
+        updateUndoRetouchButton()
+
+        if settings.mode == .retouch {
+            refreshRetouchPreview(at: currentIndex)
+        } else {
+            refreshPreview(invalidateCache: false, showSpinner: previewCache[currentIndex] == nil)
+        }
+    }
+
+    private func remappedCache<T>(_ cache: [Int: T], removing index: Int) -> [Int: T] {
+        var result: [Int: T] = [:]
+        for (key, value) in cache {
+            if key < index {
+                result[key] = value
+            } else if key > index {
+                result[key - 1] = value
+            }
+        }
+        return result
+    }
+
+    private func remappedSet(_ set: Set<Int>, removing index: Int) -> Set<Int> {
+        Set(set.compactMap { value in
+            if value == index { return nil }
+            return value > index ? value - 1 : value
+        })
+    }
+
     private func goToPhoto(at index: Int) {
         guard index >= 0, index < images.count, index != currentIndex else { return }
         hideBrushSizeIndicator()
@@ -802,6 +995,161 @@ final class EditViewController: UIViewController {
             refreshPreview(showSpinner: previewCache[index] == nil)
         }
     }
+
+    @objc private func removeBackgroundTapped() {
+        guard #available(iOS 17.0, *) else {
+            showAlert(title: L10n.cutoutUnavailableTitle, message: L10n.cutoutUnavailable)
+            return
+        }
+
+        removeBackgroundButton.isEnabled = false
+        previewSpinner.startAnimating()
+
+        let sources = images
+        let total = sources.count
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
+            var failures = 0
+
+            for (index, source) in sources.enumerated() {
+                let previewSource = ImageLoader.downsample(
+                    source,
+                    maxPixelSize: ImageLimits.previewMaxPixelSize
+                )
+                let result = try? WatermarkEngine.removeBackground(from: previewSource)
+                let current = index + 1
+
+                DispatchQueue.main.async {
+                    var config = self.removeBackgroundButton.configuration ?? UIButton.Configuration.filled()
+                    config.title = L10n.cutoutProgress(current: current, total: total)
+                    self.removeBackgroundButton.configuration = config
+                }
+
+                if let result {
+                    DispatchQueue.main.async {
+                        self.cutoutAppliedIndices.insert(index)
+                        self.baseImageCache[index] = result
+                        self.previewCache.removeValue(forKey: index)
+                    }
+                } else {
+                    failures += 1
+                }
+            }
+
+            DispatchQueue.main.async {
+                self.previewSpinner.stopAnimating()
+                self.removeBackgroundButton.isEnabled = true
+                var config = self.removeBackgroundButton.configuration ?? UIButton.Configuration.filled()
+                config.title = L10n.removeBackground
+                self.removeBackgroundButton.configuration = config
+                self.refreshPreview(invalidateCache: true)
+
+                if failures > 0 {
+                    self.showAlert(
+                        title: L10n.cutoutPartialFailureTitle,
+                        message: L10n.cutoutPartialFailure(failures)
+                    )
+                }
+            }
+        }
+    }
+
+    @objc private func collageTapped() {
+        commitSliderValues()
+        let previews = collectCollagePreviewImages()
+        guard !previews.isEmpty else {
+            showAlert(title: L10n.collageTitle, message: L10n.collageExportFailed)
+            return
+        }
+
+        let collageVC = CollageViewController(previewImages: previews) { [weak self] options, imageOrder, completion in
+            self?.renderCollageExport(options: options, imageOrder: imageOrder, completion: completion)
+        }
+        let nav = UINavigationController(rootViewController: collageVC)
+        if let sheet = nav.sheetPresentationController {
+            sheet.detents = [.medium(), .large()]
+            sheet.prefersGrabberVisible = true
+        }
+        present(nav, animated: true)
+    }
+
+    private func collectCollagePreviewImages() -> [UIImage] {
+        var results: [UIImage] = []
+        results.reserveCapacity(images.count)
+        let renderSettings = previewSettingsForRender()
+
+        for index in 0..<images.count {
+            if let cached = previewCache[index] {
+                switch cached {
+                case .flat(let image):
+                    results.append(image)
+                case .layered(let base, let overlay):
+                    results.append(WatermarkEngine.flattenLayeredPreview(base: base, overlay: overlay) ?? base)
+                }
+            } else {
+                let preview = renderPreview(for: index, settings: renderSettings)
+                switch preview {
+                case .flat(let image):
+                    results.append(image)
+                case .layered(let base, let overlay):
+                    results.append(WatermarkEngine.flattenLayeredPreview(base: base, overlay: overlay) ?? base)
+                }
+            }
+        }
+        return results
+    }
+
+    private func renderCollageExport(
+        options: CollageLayoutOptions,
+        imageOrder: [Int],
+        completion: @escaping (UIImage?) -> Void
+    ) {
+        commitSliderValues()
+        let renderSettings = settings
+        let cutoutIndices = cutoutAppliedIndices
+        let retouchPaths = retouchNormalizedStrokePaths
+        let sources = images
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            var rendered: [UIImage] = []
+            rendered.reserveCapacity(imageOrder.count)
+
+            for sourceIndex in imageOrder {
+                guard sourceIndex < sources.count else { continue }
+                let source = sources[sourceIndex]
+                autoreleasepool {
+                    let image: UIImage
+                    if renderSettings.mode == .retouch {
+                        image = WatermarkEngine.applyRetouch(
+                            to: source,
+                            normalizedStrokePaths: retouchPaths[sourceIndex] ?? [],
+                            brushDiameter: renderSettings.retouchBrushSize
+                        )
+                    } else {
+                        var working = source
+                        if cutoutIndices.contains(sourceIndex) {
+                            if let cutout = try? WatermarkEngine.removeBackground(from: source) {
+                                working = cutout
+                            }
+                        }
+                        if renderSettings.mode == .cutout {
+                            image = working
+                        } else {
+                            image = WatermarkEngine.applyWatermark(to: working, settings: renderSettings)
+                        }
+                    }
+                    rendered.append(image)
+                }
+            }
+
+            let collage = WatermarkEngine.layoutImages(rendered, options: options)
+            DispatchQueue.main.async {
+                completion(collage)
+            }
+        }
+    }
+
     @objc private func saveAllTapped() {
         guard TrialManager.shared.canSaveBatch() else {
             presentPurchase()
@@ -824,6 +1172,7 @@ final class EditViewController: UIViewController {
         progressVC.renderImages(
             sources: images,
             settings: renderSettings,
+            cutoutAppliedIndices: cutoutAppliedIndices,
             retouchStrokePaths: retouchNormalizedStrokePaths
         ) { outputs in
             let shouldConsume = !TrialManager.shared.isUnlocked
@@ -867,12 +1216,14 @@ final class EditViewController: UIViewController {
         let isTiled = settings.mode == .tiled
         let isCorner = settings.mode == .corner
         let isCard = settings.mode == .card
+        let isCutout = settings.mode == .cutout
         let isRetouch = settings.mode == .retouch
 
+        removeBackgroundButton.isHidden = !isCutout
         rotationRow.isHidden = !isTiled
         spacingRow.isHidden = !isTiled
-        opacityRow.isHidden = isCard || isRetouch
-        sizeRow.isHidden = isCard || isRetouch
+        opacityRow.isHidden = isCard || isRetouch || isCutout
+        sizeRow.isHidden = isCard || isRetouch || isCutout
         borderWidthRow.isHidden = !isCard
         frameCaptionRow.isHidden = !isCard
         brushSizeRow.isHidden = !isRetouch
@@ -882,21 +1233,21 @@ final class EditViewController: UIViewController {
         cornerPositionControl.isHidden = !isCorner
         templateHeaderLabel.isHidden = true
         templateCollectionView.isHidden = true
-        textField.isHidden = isCorner || isRetouch
+        textField.isHidden = isCorner || isRetouch || isCutout
         logoButton.isHidden = !isCorner
         clearLogoButton.isHidden = !isCorner || settings.logo(for: settings.mode) == nil
 
         if !isRetouch {
             hideBrushSizeIndicator()
-            navigationItem.rightBarButtonItems = [saveAllBarButton]
+            navigationItem.rightBarButtonItems = [saveAllBarButton, collageBarButton]
         } else {
-            navigationItem.rightBarButtonItems = [saveAllBarButton, undoRetouchBarButton]
+            navigationItem.rightBarButtonItems = [saveAllBarButton, collageBarButton, undoRetouchBarButton]
             updateUndoRetouchButton()
         }
 
         if isCorner {
             view.endEditing(true)
-        } else if isRetouch {
+        } else if isRetouch || isCutout {
             view.endEditing(true)
         }
 
@@ -1265,6 +1616,9 @@ final class EditViewController: UIViewController {
         case .card:
             let rendered = WatermarkEngine.applyWatermark(to: previewSource, settings: renderSettings)
             return .flat(rendered)
+        case .cutout:
+            let base = baseImageCache[index] ?? previewSource
+            return .flat(base)
         case .retouch:
             let base = previewSource
             if let composite = retouchCompositeCache[index] {

@@ -1,5 +1,22 @@
 import UIKit
 import CoreImage
+import Vision
+
+enum CutoutError: LocalizedError {
+    case invalidImage
+    case unavailable
+    case noSubjectFound
+    case visionFailed(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidImage: return L10n.cutoutInvalidImage
+        case .unavailable: return L10n.cutoutUnavailable
+        case .noSubjectFound: return L10n.cutoutNoSubject
+        case .visionFailed(let message): return message
+        }
+    }
+}
 
 enum WatermarkEngine {
 
@@ -15,6 +32,8 @@ enum WatermarkEngine {
                 return drawCornerWatermark(on: image, settings: settings)
             case .card:
                 return applyPhotoFrame(to: image, settings: settings)
+            case .cutout:
+                return ImageLoader.normalized(image)
             case .retouch:
                 return applyRetouch(to: image, normalizedStrokes: [], brushDiameter: settings.retouchBrushSize)
             }
@@ -43,6 +62,8 @@ enum WatermarkEngine {
             case .corner:
                 return drawCornerWatermark(on: source, settings: overlaySettings, drawBase: false)
             case .card:
+                return nil
+            case .cutout:
                 return nil
             case .retouch:
                 return nil
@@ -886,7 +907,7 @@ enum WatermarkEngine {
             side = max(reference * 0.12 * settings.tiledScale, 24)
         case .corner:
             side = max(reference * settings.cornerScale, 24)
-        case .card, .retouch:
+        case .card, .cutout, .retouch:
             side = 24
         }
         return CGSize(width: side, height: side)
@@ -1045,5 +1066,80 @@ enum WatermarkEngine {
                 withAttributes: attrs
             )
         } ?? UIImage()
+    }
+
+    // MARK: - Cutout (Vision, on-device)
+
+    /// Removes the photo background and composites the subject onto a white canvas (original dimensions).
+    static func removeBackground(from image: UIImage) throws -> UIImage {
+        guard isValidImage(image) else { throw CutoutError.invalidImage }
+        guard #available(iOS 17.0, *) else { throw CutoutError.unavailable }
+        return try removeBackgroundWithVision(from: ImageLoader.normalized(image))
+    }
+
+    @available(iOS 17.0, *)
+    private static func removeBackgroundWithVision(from source: UIImage) throws -> UIImage {
+        guard let cgImage = source.cgImage else { throw CutoutError.invalidImage }
+
+        let request = VNGenerateForegroundInstanceMaskRequest()
+        let handler = VNImageRequestHandler(cgImage: cgImage, orientation: .up, options: [:])
+        try handler.perform([request])
+
+        guard let observation = request.results?.first else {
+            throw CutoutError.noSubjectFound
+        }
+
+        let instances = observation.allInstances
+        guard !instances.isEmpty else { throw CutoutError.noSubjectFound }
+
+        let maskBuffer = try observation.generateScaledMaskForImage(forInstances: instances, from: handler)
+        return compositeSubjectOnWhite(source: source, maskBuffer: maskBuffer)
+    }
+
+    @available(iOS 17.0, *)
+    private static func compositeSubjectOnWhite(source: UIImage, maskBuffer: CVPixelBuffer) -> UIImage {
+        guard let cgImage = source.cgImage else { return source }
+
+        let sourceCI = CIImage(cgImage: cgImage)
+        var maskCI = CIImage(cvPixelBuffer: maskBuffer)
+
+        let sourceExtent = sourceCI.extent
+        if maskCI.extent.size != sourceExtent.size {
+            let scaleX = sourceExtent.width / maskCI.extent.width
+            let scaleY = sourceExtent.height / maskCI.extent.height
+            maskCI = maskCI.transformed(by: CGAffineTransform(scaleX: scaleX, y: scaleY))
+        }
+
+        let white = CIImage(color: CIColor.white).cropped(to: sourceExtent)
+        guard let filter = CIFilter(name: "CIBlendWithMask") else { return source }
+        filter.setValue(sourceCI, forKey: kCIInputImageKey)
+        filter.setValue(white, forKey: kCIInputBackgroundImageKey)
+        filter.setValue(maskCI, forKey: kCIInputMaskImageKey)
+
+        guard let output = filter.outputImage else { return source }
+        let context = CIContext(options: [.useSoftwareRenderer: false])
+        guard let outputCG = context.createCGImage(output, from: sourceExtent) else { return source }
+
+        return UIImage(cgImage: outputCG, scale: source.scale, orientation: .up)
+    }
+
+    // MARK: - Collage layout
+
+    static func flattenLayeredPreview(base: UIImage, overlay: UIImage) -> UIImage? {
+        let normalizedBase = ImageLoader.normalized(base)
+        let normalizedOverlay = ImageLoader.normalized(overlay)
+        let size = normalizedBase.size
+        return ImageLoader.renderOpaque(size: size, scale: normalizedBase.scale) { _ in
+            normalizedBase.draw(in: CGRect(origin: .zero, size: size))
+            normalizedOverlay.draw(in: CGRect(origin: .zero, size: size))
+        }
+    }
+
+    static func layoutImages(_ images: [UIImage], options: CollageLayoutOptions) -> UIImage? {
+        CollageLayoutEngine.layoutImages(images, options: options)
+    }
+
+    static func layoutImages(_ images: [UIImage], layoutType: CollageLayoutType) -> UIImage? {
+        layoutImages(images, options: CollageLayoutOptions(layoutType: layoutType))
     }
 }

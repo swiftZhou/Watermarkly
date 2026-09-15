@@ -101,6 +101,7 @@ final class SaveProgressViewController: UIViewController {
     func renderImages(
         sources: [UIImage],
         settings: WatermarkSettings,
+        cutoutAppliedIndices: Set<Int> = [],
         retouchStrokePaths: [Int: [[CGPoint]]] = [:],
         completion: @escaping ([UIImage]) -> Void
     ) {
@@ -118,7 +119,17 @@ final class SaveProgressViewController: UIViewController {
                             brushDiameter: settings.retouchBrushSize
                         )
                     } else {
-                        rendered = WatermarkEngine.applyWatermark(to: source, settings: settings)
+                        var working = source
+                        if cutoutAppliedIndices.contains(index) {
+                            if let cutout = try? WatermarkEngine.removeBackground(from: source) {
+                                working = cutout
+                            }
+                        }
+                        if settings.mode == .cutout {
+                            rendered = working
+                        } else {
+                            rendered = WatermarkEngine.applyWatermark(to: working, settings: settings)
+                        }
                     }
                     outputs.append(rendered)
                 }
@@ -131,6 +142,12 @@ final class SaveProgressViewController: UIViewController {
                 completion(outputs)
             }
         }
+    }
+
+    func updateCutoutProgress(current: Int, total: Int) {
+        let progress = Float(current) / Float(max(total, 1))
+        progressView.setProgress(progress * 0.4, animated: true)
+        statusLabel.text = L10n.cutoutProgress(current: current, total: total)
     }
 
     func saveToLibrary(_ images: [UIImage], consumeTrialIfNeeded: Bool) {

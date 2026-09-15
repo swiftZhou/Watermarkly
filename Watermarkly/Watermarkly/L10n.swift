@@ -30,6 +30,7 @@ enum L10n {
     static var modeTiled: String { tr("Tiled") }
     static var modeCorner: String { tr("Corner") }
     static var modeCard: String { tr("Card") }
+    static var modeCutout: String { tr("Cutout") }
     static var modeRetouch: String { tr("Retouch") }
 
     // MARK: - Edit
@@ -67,6 +68,50 @@ enum L10n {
     static var photoPageSingle: String { tr("Photo 1 of 1 · pinch to zoom") }
     static var saved: String { tr("Saved") }
     static var saveFailed: String { tr("Save Failed") }
+
+    // MARK: - Cutout
+
+    static var removeBackground: String { tr("Remove Background") }
+    static func cutoutProgress(current: Int, total: Int) -> String {
+        format("Removing background %lld of %lld…", current, total)
+    }
+    static var cutoutUnavailableTitle: String { tr("Cutout Unavailable") }
+    static var cutoutUnavailable: String {
+        tr("Background removal requires iOS 17 or later on this device.")
+    }
+    static var cutoutInvalidImage: String { tr("Unable to process this photo for cutout.") }
+    static var cutoutNoSubject: String { tr("No subject was detected in this photo.") }
+    static var cutoutPartialFailureTitle: String { tr("Some Photos Failed") }
+    static func cutoutPartialFailure(_ count: Int) -> String {
+        format("%lld photo(s) could not be cut out. Try different images or angles.", count)
+    }
+
+    // MARK: - Collage
+
+    static var collageTitle: String { tr("Batch Layout") }
+    static var layoutGrid3x3: String { tr("3×3 Grid") }
+    static var layoutPortrait4x5: String { tr("4:5 Long") }
+    static var layoutPortrait9x16: String { tr("9:16 Long") }
+    static var saveCollage: String { tr("Save Collage") }
+    static var shareCollage: String { tr("Share") }
+    static var collageSaved: String { tr("Collage saved to your photo library.") }
+    static var collageExportFailed: String { tr("Unable to create collage.") }
+    static var collageFill: String { tr("Fill") }
+    static var collageFit: String { tr("Fit") }
+    static var collageBgWhite: String { tr("White") }
+    static var collageBgGray: String { tr("Gray") }
+    static var collageBgBlur: String { tr("Blur") }
+    static var collageHeroLayout: String { tr("Hero layout") }
+    static var collageLayoutSection: String { tr("Layout") }
+    static var collageCellModeSection: String { tr("Cell mode") }
+    static var collageBackgroundSection: String { tr("Background") }
+    static var collageInteractionHint: String {
+        tr("Tap a cell to adjust · Long-press to reorder · Pinch to zoom")
+    }
+    static var collageRemovePhoto: String { tr("Remove photo") }
+    static var collageNeedOnePhoto: String {
+        tr("Keep at least one photo in the layout.")
+    }
 
     // MARK: - Purchase
 

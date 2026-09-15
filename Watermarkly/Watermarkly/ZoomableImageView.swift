@@ -281,7 +281,7 @@ final class ZoomableImageView: UIScrollView, UIScrollViewDelegate, UIGestureReco
             overlayImageView.transform = scaleFactor == 1
                 ? .identity
                 : CGAffineTransform(scaleX: scaleFactor, y: scaleFactor)
-        case .corner, .retouch:
+        case .corner, .cutout, .retouch:
             overlayImageView.transform = .identity
         case .card:
             break

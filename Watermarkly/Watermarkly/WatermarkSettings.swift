@@ -4,6 +4,7 @@ enum WatermarkMode: Int, CaseIterable {
     case tiled
     case corner
     case card
+    case cutout
     case retouch
 
     var title: String {
@@ -11,6 +12,7 @@ enum WatermarkMode: Int, CaseIterable {
         case .tiled: return L10n.modeTiled
         case .corner: return L10n.modeCorner
         case .card: return L10n.modeCard
+        case .cutout: return L10n.modeCutout
         case .retouch: return L10n.modeRetouch
         }
     }
@@ -102,8 +104,7 @@ struct WatermarkSettings {
         switch mode {
         case .tiled: return tiledLogoImage
         case .corner: return cornerLogoImage
-        case .card: return nil
-        case .retouch: return nil
+        case .card, .cutout, .retouch: return nil
         }
     }
 
@@ -111,8 +112,7 @@ struct WatermarkSettings {
         switch mode {
         case .tiled: tiledLogoImage = image
         case .corner: cornerLogoImage = image
-        case .card: break
-        case .retouch: break
+        case .card, .cutout, .retouch: break
         }
     }
 }
